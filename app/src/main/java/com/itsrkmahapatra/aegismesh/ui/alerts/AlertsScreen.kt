@@ -1,6 +1,9 @@
 package com.itsrkmahapatra.aegismesh.ui.alerts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +18,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +59,22 @@ fun AlertsScreen(
     val alerts by viewModel.alerts.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val statusMessage by viewModel.lastRefreshResult.collectAsState()
+    val activeState by viewModel.activeStateName.collectAsState()
+    val isAutoGps by viewModel.isAutoGpsState.collectAsState()
+    val filteredOutCount by viewModel.filteredOutCount.collectAsState()
+
+    val stateChips = listOf(
+        Pair("AUTO", if (isAutoGps) "📍 Auto (GPS: $activeState)" else "📍 Use GPS Location"),
+        Pair("Odisha", "Odisha 🌊 (Odia)"),
+        Pair("West Bengal", "West Bengal 🌾 (Bangla)"),
+        Pair("Andhra Pradesh", "Andhra Pradesh ⚡ (Telugu)"),
+        Pair("Tamil Nadu", "Tamil Nadu 🏛️ (Tamil)"),
+        Pair("Maharashtra", "Maharashtra 🚩 (Marathi)"),
+        Pair("Gujarat", "Gujarat 🦁 (Gujarati)"),
+        Pair("Kerala", "Kerala 🌴 (Malayalam)"),
+        Pair("Karnataka", "Karnataka 🌿 (Kannada)"),
+        Pair("ALL", "All India (No Filter)")
+    )
 
     Scaffold(
         topBar = {
@@ -59,9 +85,9 @@ fun AlertsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    // Title and Mesh Status Pill
+                    // Header: Title and Mesh Status Pill
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -76,7 +102,7 @@ fun AlertsScreen(
                             )
                             Text(
                                 text = "Official NDMA SACHET Warnings (Last 24 Hours)",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -112,28 +138,117 @@ fun AlertsScreen(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Location & Language Policy Banner
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                            .border(1.dp, RadarCyan.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isAutoGps) Icons.Default.GpsFixed else Icons.Default.FilterAlt,
+                            contentDescription = null,
+                            tint = RadarCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (activeState == "ALL") "All India Feed (Preview Mode)" else "Location State: $activeState",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (isAutoGps) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(MeshGreen.copy(alpha = 0.2f))
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = "GPS AUTO",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MeshGreen
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = if (activeState == "ALL") {
+                                    "Showing all languages across India"
+                                } else {
+                                    "Showing English, Hindi & ${activeState} regional alerts ($filteredOutCount irrelevant state alerts filtered)"
+                                },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Status Bar & Refresh Button
+                    // Horizontal State Switcher Chips
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for ((chipKey, chipLabel) in stateChips) {
+                            val isSelected = if (chipKey == "AUTO") isAutoGps else (!isAutoGps && activeState.equals(chipKey, ignoreCase = true))
+                            val chipBg = if (isSelected) RadarCyan else MaterialTheme.colorScheme.surfaceVariant
+                            val chipTextColor = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(chipBg)
+                                    .clickable { viewModel.selectState(chipKey) }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = chipLabel,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = chipTextColor
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Status Bar & Direct Refresh
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = statusMessage ?: "Active Alerts: ${alerts.size}",
-                            fontSize = 12.sp,
+                            text = statusMessage ?: "Active Alerts: ${alerts.size} in last 24h",
+                            fontSize = 11.sp,
                             color = RadarCyan,
                             fontWeight = FontWeight.Medium
                         )
 
                         IconButton(
                             onClick = { viewModel.refreshAlerts() },
-                            enabled = !isRefreshing
+                            enabled = !isRefreshing,
+                            modifier = Modifier.size(32.dp)
                         ) {
                             if (isRefreshing) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(18.dp),
                                     strokeWidth = 2.dp,
                                     color = RadarCyan
                                 )
@@ -141,7 +256,8 @@ fun AlertsScreen(
                                 Icon(
                                     imageVector = Icons.Default.Refresh,
                                     contentDescription = "Refresh Direct",
-                                    tint = RadarCyan
+                                    tint = RadarCyan,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -172,18 +288,26 @@ fun AlertsScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "No Severe Advisories in Last 24 Hours",
+                        text = "All Clear in $activeState",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "No extreme or severe disaster alerts issued by NDMA in the past 24 hours. Tap Refresh to check live public feeds or stay vigilant.",
+                        text = "No severe alerts matching $activeState in the last 24 hours. (English, Hindi, and regional alerts are actively monitored).",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
+                    if (filteredOutCount > 0) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "($filteredOutCount alerts from other states were filtered out to prevent disappointment).",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                    }
                 }
             }
         } else {

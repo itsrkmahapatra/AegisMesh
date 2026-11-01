@@ -102,6 +102,7 @@ class AlertRepository(
             obj.put("sourceAuthority", alert.sourceAuthority)
             obj.put("syncTimestampEpoch", alert.syncTimestampEpoch)
             obj.put("hop", alert.hopCount + 1)
+            obj.put("languageCode", alert.languageCode)
             alertsArray.put(obj)
         }
         root.put("alerts", alertsArray)
@@ -153,7 +154,8 @@ class AlertRepository(
                         polygonGeoJson = null,
                         sourceAuthority = item.optString("sourceAuthority", "NDMA Relay"),
                         syncTimestampEpoch = item.optLong("syncTimestampEpoch", now),
-                        hopCount = hop
+                        hopCount = hop,
+                        languageCode = item.optString("languageCode", "en")
                     )
                 )
             }

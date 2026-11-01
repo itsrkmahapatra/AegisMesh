@@ -1,8 +1,12 @@
 package com.itsrkmahapatra.aegismesh.domain.model
 
+import com.itsrkmahapatra.aegismesh.util.AlertLanguageHelper
+
 /**
  * Domain representation of an official government emergency alert (NDMA CAP RSS).
  * No user chat, 100% broadcast/read-only compliance.
+ * 
+ * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
 data class EmergencyAlert(
     val id: String,                         // Unique CAP identifier or guid
@@ -22,6 +26,20 @@ data class EmergencyAlert(
     val polygonGeoJson: String?,            // Optional geo-fence boundary points
     val sourceAuthority: String,            // IMD, CWC, INCOIS, SDMA
     val syncTimestampEpoch: Long,           // Last sync timestamp for 'latest wins' resolution
-    val hopCount: Int = 0                   // Mesh relay hop count (TTL decrementing)
-)
-
+    val hopCount: Int = 0,                  // Mesh relay hop count (TTL decrementing)
+    val languageCode: String = "en"         // en, hi, or, bn, te, ta, kn, ml, gu, mr, pa, as
+) {
+    /**
+     * Resolves the alert language based on language code and Unicode script detection.
+     */
+    val detectedLanguage: AlertLanguage
+        get() {
+            val fromCode = AlertLanguage.fromCode(languageCode)
+            return if (fromCode == AlertLanguage.ENGLISH) {
+                // If marked english or default, verify whether title or description actually contains regional script
+                AlertLanguageHelper.detectLanguage(title, description, sourceAuthority)
+            } else {
+                fromCode
+            }
+        }
+}

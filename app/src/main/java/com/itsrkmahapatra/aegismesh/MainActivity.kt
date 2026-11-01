@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity(), LocationListener {
 
     private fun updateLocation(location: Location) {
         mapViewModel.updateGpsLocation(location.latitude, location.longitude)
-        alertsViewModel.updateLocation(location.latitude, location.longitude)
+        alertsViewModel.updateLocation(location.latitude, location.longitude, this)
     }
 
     override fun onLocationChanged(location: Location) {

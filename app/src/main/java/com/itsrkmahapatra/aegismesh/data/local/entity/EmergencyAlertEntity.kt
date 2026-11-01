@@ -33,7 +33,8 @@ data class EmergencyAlertEntity(
     val polygonGeoJson: String?,
     val sourceAuthority: String,
     val syncTimestampEpoch: Long,
-    val hopCount: Int
+    val hopCount: Int,
+    val languageCode: String = "en"
 ) {
     fun toDomain(): EmergencyAlert = EmergencyAlert(
         id = id,
@@ -53,7 +54,8 @@ data class EmergencyAlertEntity(
         polygonGeoJson = polygonGeoJson,
         sourceAuthority = sourceAuthority,
         syncTimestampEpoch = syncTimestampEpoch,
-        hopCount = hopCount
+        hopCount = hopCount,
+        languageCode = languageCode
     )
 
     companion object {
@@ -75,8 +77,8 @@ data class EmergencyAlertEntity(
             polygonGeoJson = domain.polygonGeoJson,
             sourceAuthority = domain.sourceAuthority,
             syncTimestampEpoch = domain.syncTimestampEpoch,
-            hopCount = domain.hopCount
+            hopCount = domain.hopCount,
+            languageCode = domain.languageCode
         )
     }
 }
-

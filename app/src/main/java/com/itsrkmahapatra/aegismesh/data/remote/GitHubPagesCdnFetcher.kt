@@ -58,7 +58,8 @@ class GitHubPagesCdnFetcher(
                             polygonGeoJson = item.optString("polygonGeoJson", null),
                             sourceAuthority = item.optString("sourceAuthority", "NDMA Sachet"),
                             syncTimestampEpoch = item.optLong("syncTimestampEpoch", System.currentTimeMillis()),
-                            hopCount = 0
+                            hopCount = 0,
+                            languageCode = item.optString("languageCode", "en")
                         )
                     )
                 }

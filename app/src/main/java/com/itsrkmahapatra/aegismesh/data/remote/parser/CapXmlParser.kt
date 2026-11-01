@@ -3,6 +3,7 @@ package com.itsrkmahapatra.aegismesh.data.remote.parser
 import android.util.Xml
 import com.itsrkmahapatra.aegismesh.domain.model.AlertSeverity
 import com.itsrkmahapatra.aegismesh.domain.model.EmergencyAlert
+import com.itsrkmahapatra.aegismesh.util.AlertLanguageHelper
 import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 import java.text.SimpleDateFormat
@@ -122,11 +123,14 @@ class CapXmlParser {
                         val (centroidLat, centroidLon) = parsePolygonCentroid(polygon)
 
                         val alertId = if (guid.isNotEmpty()) guid else "alert_${title.hashCode()}_$pubDateEpoch"
+                        val cleanDesc = cleanHtmlTags(description)
+                        val safeTitle = title.ifEmpty { "Severe Weather Advisory" }
+                        val detectedLang = AlertLanguageHelper.detectLanguage(safeTitle, cleanDesc, authority)
 
                         val parsedAlert = EmergencyAlert(
                             id = alertId,
-                            title = title.ifEmpty { "Severe Weather Advisory" },
-                            description = cleanHtmlTags(description),
+                            title = safeTitle,
+                            description = cleanDesc,
                             instruction = instruction.ifEmpty { "Follow local district disaster management authority (DDMA) instructions. Keep battery charged and emergency kit ready." },
                             category = "Met",
                             severity = AlertSeverity.fromString(severity),
@@ -141,7 +145,8 @@ class CapXmlParser {
                             polygonGeoJson = if (polygon.isNotEmpty()) polygon else null,
                             sourceAuthority = authority,
                             syncTimestampEpoch = currentTime,
-                            hopCount = 0
+                            hopCount = 0,
+                            languageCode = detectedLang.code
                         )
 
                         alerts.add(parsedAlert)

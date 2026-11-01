@@ -41,6 +41,36 @@ function fetchHttps(url, userAgent) {
   });
 }
 
+function detectLanguage(title, description, author) {
+  const combined = (title + ' ' + description + ' ' + author);
+  let odia = 0, telugu = 0, tamil = 0, kannada = 0, malayalam = 0, gujarati = 0, punjabi = 0, bengali = 0, devanagari = 0;
+  for (let i = 0; i < combined.length; i++) {
+    const code = combined.charCodeAt(i);
+    if (code >= 0x0B00 && code <= 0x0B7F) odia++;
+    else if (code >= 0x0C00 && code <= 0x0C7F) telugu++;
+    else if (code >= 0x0B80 && code <= 0x0BFF) tamil++;
+    else if (code >= 0x0C80 && code <= 0x0CFF) kannada++;
+    else if (code >= 0x0D00 && code <= 0x0D7F) malayalam++;
+    else if (code >= 0x0A80 && code <= 0x0AFF) gujarati++;
+    else if (code >= 0x0A00 && code <= 0x0A7F) punjabi++;
+    else if (code >= 0x0980 && code <= 0x09FF) bengali++;
+    else if (code >= 0x0900 && code <= 0x097F) devanagari++;
+  }
+  if (odia >= 2) return 'or';
+  if (telugu >= 2) return 'te';
+  if (tamil >= 2) return 'ta';
+  if (kannada >= 2) return 'kn';
+  if (malayalam >= 2) return 'ml';
+  if (gujarati >= 2) return 'gu';
+  if (punjabi >= 2) return 'pa';
+  if (bengali >= 2) return 'bn';
+  if (devanagari >= 2) {
+    if (author.toLowerCase().includes('maharashtra') || author.toLowerCase().includes('mumbai')) return 'mr';
+    return 'hi';
+  }
+  return 'en';
+}
+
 function parseNdmaXmlSimple(xmlString) {
   const alerts = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
@@ -56,6 +86,7 @@ function parseNdmaXmlSimple(xmlString) {
     const title = getTag('title');
     const description = getTag('description').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     const pubDate = getTag('pubDate');
+    const author = getTag('author') || getTag('cap:senderName') || 'NDMA Sachet';
     const guid = getTag('guid') || `alert_${Math.abs(title.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`;
     const severity = getTag('cap:severity') || (title.toLowerCase().includes('red') ? 'Extreme' : 'Severe');
     const event = getTag('cap:event') || 'Cyclonic Storm / Heavy Rainfall';
@@ -64,6 +95,7 @@ function parseNdmaXmlSimple(xmlString) {
 
     const pubEpoch = pubDate ? new Date(pubDate).getTime() : Date.now();
     const expiresEpoch = pubEpoch + (48 * 3600 * 1000);
+    const langCode = detectLanguage(title, description, author);
 
     alerts.push({
       id: guid,
@@ -80,9 +112,10 @@ function parseNdmaXmlSimple(xmlString) {
       areaDescription: areaDesc,
       centroidLat: 20.5937,
       centroidLon: 78.9629,
-      sourceAuthority: 'NDMA Sachet',
+      sourceAuthority: author,
       syncTimestampEpoch: Date.now(),
-      hopCount: 0
+      hopCount: 0,
+      languageCode: langCode
     });
   }
 
