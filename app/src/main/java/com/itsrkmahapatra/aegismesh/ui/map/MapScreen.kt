@@ -127,8 +127,8 @@ fun MapScreen(
                                     maxLat = bounds.latitudeNorth,
                                     minLon = bounds.longitudeWest,
                                     maxLon = bounds.longitudeEast,
-                                    centerLat = map.cameraPosition.target.latitude,
-                                    centerLon = map.cameraPosition.target.longitude
+                                    centerLat = map.cameraPosition.target?.latitude ?: ((bounds.latitudeSouth + bounds.latitudeNorth) / 2.0),
+                                    centerLon = map.cameraPosition.target?.longitude ?: ((bounds.longitudeWest + bounds.longitudeEast) / 2.0)
                                 )
                             }
                         }
