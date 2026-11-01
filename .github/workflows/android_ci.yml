@@ -29,13 +29,15 @@ jobs:
           gradle-version: '8.6'
 
       - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+        run: |
+          gradle assembleDebug --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/AegisMesh-v1.0.0-debug.apk
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AegisMesh-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/AegisMesh-v1.0.0-debug.apk
           if-no-files-found: error
 
       - name: Publish Test Release with APK Asset
@@ -44,10 +46,11 @@ jobs:
         with:
           tag_name: v1.0.0-test
           name: AegisMesh v1.0.0 Test Build
+          prerelease: true
           body: |
             Official test APK build for AegisMesh (com.itsrkmahapatra.aegismesh).
             Developed by Raj Kishor Mahapatra.
             Proprietary - For Authorized Testing Use Only.
-          files: app/build/outputs/apk/debug/*.apk
+          files: app/build/outputs/apk/debug/AegisMesh-v1.0.0-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

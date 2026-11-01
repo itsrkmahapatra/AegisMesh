@@ -224,7 +224,7 @@ fun AlertCard(
                                         text = "Official Government Do\'s & Don\'ts",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
-                                        color = TextPrimary
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
