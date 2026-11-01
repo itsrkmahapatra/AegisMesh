@@ -11,26 +11,40 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AlertDao {
 
-    @Query("SELECT * FROM emergency_alerts WHERE expiresEpoch >= :currentTimeEpoch ORDER BY CASE severity WHEN 'EXTREME' THEN 1 WHEN 'SEVERE' THEN 2 WHEN 'MODERATE' THEN 3 ELSE 4 END, syncTimestampEpoch DESC")
-    fun getAllActiveAlerts(currentTimeEpoch: Long): Flow<List<EmergencyAlertEntity>>
-
-    @Query("SELECT * FROM emergency_alerts WHERE expiresEpoch >= :currentTimeEpoch AND centroidLat BETWEEN :minLat AND :maxLat AND centroidLon BETWEEN :minLon AND :maxLon ORDER BY CASE severity WHEN 'EXTREME' THEN 1 WHEN 'SEVERE' THEN 2 ELSE 3 END, syncTimestampEpoch DESC")
-    fun getAlertsInBoundingBox(
-        minLat: Double,
-        maxLat: Double,
-        minLon: Double,
-        maxLon: Double,
+    /**
+     * Returns all active official alerts issued within the last 24 hours.
+     * Strict 24-hour cutoff: drops any alerts older than 24 hours.
+     * Ordered by Severity (EXTREME -> SEVERE -> MODERATE) then newest issued time.
+     */
+    @Query("""
+        SELECT * FROM emergency_alerts 
+        WHERE effectiveEpoch >= :minEffectiveEpoch 
+          AND expiresEpoch >= :currentTimeEpoch 
+        ORDER BY 
+            CASE severity 
+                WHEN 'EXTREME' THEN 1 
+                WHEN 'SEVERE' THEN 2 
+                WHEN 'MODERATE' THEN 3 
+                ELSE 4 
+            END, 
+            effectiveEpoch DESC
+    """)
+    fun getActiveAlertsLast24Hours(
+        minEffectiveEpoch: Long,
         currentTimeEpoch: Long
     ): Flow<List<EmergencyAlertEntity>>
 
     @Query("SELECT * FROM emergency_alerts WHERE id = :id LIMIT 1")
     suspend fun getAlertById(id: String): EmergencyAlertEntity?
 
+    @Query("SELECT MAX(effectiveEpoch) FROM emergency_alerts")
+    suspend fun getLatestAlertEpoch(): Long?
+
     @Query("SELECT MAX(syncTimestampEpoch) FROM emergency_alerts")
     suspend fun getLatestSyncTimestamp(): Long?
 
-    @Query("SELECT * FROM emergency_alerts WHERE expiresEpoch >= :currentTimeEpoch")
-    suspend fun getAllActiveAlertsSnapshot(currentTimeEpoch: Long): List<EmergencyAlertEntity>
+    @Query("SELECT * FROM emergency_alerts WHERE effectiveEpoch >= :minEffectiveEpoch AND expiresEpoch >= :currentTimeEpoch")
+    suspend fun getActiveAlertsSnapshot(minEffectiveEpoch: Long, currentTimeEpoch: Long): List<EmergencyAlertEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(alert: EmergencyAlertEntity)
@@ -38,8 +52,11 @@ interface AlertDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(alerts: List<EmergencyAlertEntity>)
 
-    @Query("DELETE FROM emergency_alerts WHERE expiresEpoch < :currentTimeEpoch")
-    suspend fun deleteExpiredAlerts(currentTimeEpoch: Long)
+    /**
+     * Deletes alerts that are either older than 24 hours or expired.
+     */
+    @Query("DELETE FROM emergency_alerts WHERE effectiveEpoch < :minEffectiveEpoch OR expiresEpoch < :currentTimeEpoch")
+    suspend fun deleteOldAlerts(minEffectiveEpoch: Long, currentTimeEpoch: Long)
 
     /**
      * Resolves conflict with 'Latest Wins' rule.
@@ -47,12 +64,17 @@ interface AlertDao {
      */
     @Transaction
     suspend fun syncMeshAlerts(incoming: List<EmergencyAlertEntity>) {
+        val now = System.currentTimeMillis()
+        val min24h = now - (24 * 3600 * 1000L)
+
         for (alert in incoming) {
+            // Strictly reject incoming alerts older than 24 hours
+            if (alert.effectiveEpoch < min24h) continue
+
             val existing = getAlertById(alert.id)
-            if (existing == null || alert.syncTimestampEpoch > existing.syncTimestampEpoch) {
+            if (existing == null || alert.effectiveEpoch > existing.effectiveEpoch || alert.syncTimestampEpoch > existing.syncTimestampEpoch) {
                 insertOrUpdate(alert)
             }
         }
     }
 }
-

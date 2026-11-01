@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsrkmahapatra.aegismesh.data.repository.WeatherRepository
 import com.itsrkmahapatra.aegismesh.domain.model.WeatherGridPoint
-import com.itsrkmahapatra.aegismesh.util.GeoUtils
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,9 +19,8 @@ class MapViewModel(
     private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
-    // Default location: High-risk Odisha Coastal Cyclone Belt (Puri / Paradip)
-    val userLatitude = MutableStateFlow(19.8135)
-    val userLongitude = MutableStateFlow(85.8312)
+    val userLatitude = MutableStateFlow(20.5937)
+    val userLongitude = MutableStateFlow(78.9629)
 
     private val _currentHourOffset = MutableStateFlow(0)
     val currentHourOffset: StateFlow<Int> = _currentHourOffset.asStateFlow()
@@ -35,15 +33,15 @@ class MapViewModel(
 
     private var playbackJob: Job? = null
 
-    // Reactive flow of weather points for currently scrubbed hour
+    // Reactive flow of weather points for currently scrubbed hour across regional grid
     val currentHourWeather: StateFlow<List<WeatherGridPoint>> = _currentHourOffset
         .flatMapLatest { offset ->
             weatherRepository.getWeatherForHour(offset)
         }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
+            started = SharingStarted.Eagerly,
+            initialValue = WeatherRepository.generateBaselinePoints(0)
         )
 
     init {
@@ -84,7 +82,7 @@ class MapViewModel(
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
             while (isActive && _isPlaying.value) {
-                delay(600L) // Advance 1 hour every 600ms
+                delay(500L) // Advance 1 hour every 500ms for smooth fluid animation
                 val next = (_currentHourOffset.value + 1) % 168
                 _currentHourOffset.value = next
             }
@@ -96,9 +94,4 @@ class MapViewModel(
         playbackJob?.cancel()
         playbackJob = null
     }
-
-    fun get50KmBoundingBox(): GeoUtils.BoundingBox {
-        return GeoUtils.calculateBoundingBox(userLatitude.value, userLongitude.value, 50.0)
-    }
 }
-

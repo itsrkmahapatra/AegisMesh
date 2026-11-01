@@ -25,7 +25,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,10 +39,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.itsrkmahapatra.aegismesh.ui.theme.AlertExtremeRed
 import com.itsrkmahapatra.aegismesh.ui.theme.RadarCyan
+import com.itsrkmahapatra.aegismesh.util.GeoUtils
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -59,8 +61,9 @@ fun MapScreen(
     val userLon by viewModel.userLongitude.collectAsState()
 
     val mapView = remember { MapView(context) }
-    var mapLibreInstance = remember { mutableMapOf<String, MapLibreMap?>() }
-    var vectorOverlayHelper = remember { mutableMapOf<String, WindVectorOverlayHelper?>() }
+    var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+    var currentStyle by remember { mutableStateOf<Style?>(null) }
+    var overlayHelper by remember { mutableStateOf<WindVectorOverlayHelper?>(null) }
 
     DisposableEffect(mapView) {
         mapView.onCreate(null)
@@ -73,45 +76,44 @@ fun MapScreen(
         }
     }
 
-    // Update weather vector overlays whenever current hour points change
-    LaunchedEffect(weatherPoints) {
-        val map = mapLibreInstance["map"]
-        val helper = vectorOverlayHelper["helper"]
-        map?.getStyle { style ->
-            helper?.updateWeatherData(style, weatherPoints)
+    // Reactively update weather overlay whenever weatherPoints or style changes (e.g. animation loop or scrubbing)
+    LaunchedEffect(currentStyle, weatherPoints) {
+        val style = currentStyle
+        val helper = overlayHelper
+        if (style != null && helper != null && weatherPoints.isNotEmpty()) {
+            helper.updateWeatherData(style, weatherPoints)
         }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // MapLibre Native SDK Map View
+        // MapLibre Native SDK Map View (Free Pan & Zoom - No 50km Camera Lock)
         AndroidView(
             factory = {
                 mapView.apply {
                     getMapAsync { map ->
-                        mapLibreInstance["map"] = map
-                        
+                        mapInstance = map
+
+                        map.uiSettings.isCompassEnabled = true
+                        map.uiSettings.isRotateGesturesEnabled = true
+                        map.uiSettings.isTiltGesturesEnabled = false
+                        map.uiSettings.isZoomGesturesEnabled = true
+                        map.uiSettings.isScrollGesturesEnabled = true
+
+                        // Initial nationwide camera target centered on India
+                        val initialTarget = LatLng(userLat, userLon)
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(initialTarget)
+                            .zoom(5.5) // Shows major coastal sectors and regional weather grid
+                            .build()
+
                         // Keyless OpenFreeMap Vector Style
                         val styleBuilder = Style.Builder().fromUri("https://tiles.openfreemap.org/styles/liberty")
                         map.setStyle(styleBuilder) { style ->
                             val helper = WindVectorOverlayHelper(map)
-                            vectorOverlayHelper["helper"] = helper
+                            overlayHelper = helper
                             helper.setupLayers(style)
                             helper.updateWeatherData(style, weatherPoints)
-
-                            // Initial camera target set to user coordinates
-                            val initialTarget = LatLng(userLat, userLon)
-                            map.cameraPosition = CameraPosition.Builder()
-                                .target(initialTarget)
-                                .zoom(7.5)
-                                .build()
-
-                            // Lock bounds to 50 km radius target
-                            val bbox = viewModel.get50KmBoundingBox()
-                            val bounds = LatLngBounds.Builder()
-                                .include(LatLng(bbox.minLat, bbox.minLon))
-                                .include(LatLng(bbox.maxLat, bbox.maxLon))
-                                .build()
-                            map.setLatLngBoundsForCameraTarget(bounds)
+                            currentStyle = style
                         }
                     }
                 }
@@ -149,7 +151,7 @@ fun MapScreen(
                         fontSize = 12.sp
                     )
                     Text(
-                        text = "Turn ON Airplane Mode + Bluetooth to prevent modem battery drain. AegisMesh P2P is relaying offline.",
+                        text = "Turn ON Airplane Mode + Bluetooth to prevent baseband modem battery drain. AegisMesh P2P is active.",
                         color = Color.White,
                         fontSize = 11.sp,
                         lineHeight = 14.sp
@@ -166,9 +168,8 @@ fun MapScreen(
         ) {
             FloatingActionButton(
                 onClick = {
-                    val map = mapLibreInstance["map"]
-                    map?.animateCamera(
-                        CameraUpdateFactory.newLatLngZoom(LatLng(userLat, userLon), 9.0),
+                    mapInstance?.animateCamera(
+                        CameraUpdateFactory.newLatLngZoom(LatLng(userLat, userLon), 7.0),
                         800
                     )
                 },
@@ -191,16 +192,18 @@ fun MapScreen(
             }
         }
 
-        // Bottom 7-Day / 168-Hour Weather Scrubber
-        val firstPoint = weatherPoints.firstOrNull()
+        // Bottom 7-Day / 168-Hour Weather Scrubber with real-time stats
+        val activePoint = weatherPoints.minByOrNull {
+            GeoUtils.calculateDistanceKm(userLat, userLon, it.latitude, it.longitude)
+        } ?: weatherPoints.firstOrNull()
+
         TimelineScrubber(
             currentHourOffset = currentHourOffset,
             isPlaying = isPlaying,
             onHourChanged = { viewModel.setHourOffset(it) },
             onPlayPauseToggle = { viewModel.togglePlayPause() },
-            currentPoint = firstPoint,
+            currentPoint = activePoint,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }
-

@@ -101,7 +101,10 @@ async function main() {
     console.log(`[AegisMesh] Fetching NDMA feed: ${NDMA_RSS_URL}`);
     const rssXml = await fetchHttps(NDMA_RSS_URL);
     alerts = parseNdmaXmlSimple(rssXml);
-    console.log(`[AegisMesh] Successfully parsed ${alerts.length} official NDMA alerts.`);
+    // Strictly filter out any alerts older than 24 hours
+    const min24HoursAgo = Date.now() - (24 * 3600 * 1000);
+    alerts = alerts.filter(a => a.effectiveEpoch >= min24HoursAgo);
+    console.log(`[AegisMesh] Successfully compiled ${alerts.length} official alerts within last 24 hours.`);
   } catch (err) {
     console.warn(`[AegisMesh] NDMA direct fetch warning: ${err.message}. Generating emergency template.`);
     alerts = [{

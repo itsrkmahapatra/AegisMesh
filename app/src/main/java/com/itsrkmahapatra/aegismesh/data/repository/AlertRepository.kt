@@ -6,7 +6,6 @@ import com.itsrkmahapatra.aegismesh.data.remote.GitHubPagesCdnFetcher
 import com.itsrkmahapatra.aegismesh.data.remote.NdmaDirectRssFetcher
 import com.itsrkmahapatra.aegismesh.domain.model.EmergencyAlert
 import com.itsrkmahapatra.aegismesh.util.CompressionUtils
-import com.itsrkmahapatra.aegismesh.util.GeoUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -21,54 +20,37 @@ class AlertRepository(
 ) {
 
     /**
-     * Flow of all nationwide active alerts, ordered by severity.
+     * Flow of active disaster alerts issued within the last 24 hours.
+     * No 50km restriction; displays all nationwide official alerts.
      */
-    fun getActiveNationwideAlerts(): Flow<List<EmergencyAlert>> {
+    fun getActiveAlerts(): Flow<List<EmergencyAlert>> {
         val now = System.currentTimeMillis()
-        return alertDao.getAllActiveAlerts(now).map { list ->
+        val min24HoursAgo = now - (24 * 3600 * 1000L) // Strict 24-hour window
+        return alertDao.getActiveAlertsLast24Hours(min24HoursAgo, now).map { list ->
             list.map { it.toDomain() }
-        }
-    }
-
-    /**
-     * Flow of alerts filtered strictly to user's 50 km live GPS radius.
-     */
-    fun getAlertsWithin50KmRadius(userLat: Double, userLon: Double): Flow<List<EmergencyAlert>> {
-        val now = System.currentTimeMillis()
-        val bbox = GeoUtils.calculateBoundingBox(userLat, userLon, 50.0)
-
-        return alertDao.getAlertsInBoundingBox(
-            minLat = bbox.minLat,
-            maxLat = bbox.maxLat,
-            minLon = bbox.minLon,
-            maxLon = bbox.maxLon,
-            currentTimeEpoch = now
-        ).map { list ->
-            list.map { it.toDomain() }
-                .filter { alert ->
-                    GeoUtils.calculateDistanceKm(
-                        userLat, userLon,
-                        alert.centroidLat, alert.centroidLon
-                    ) <= 50.0
-                }
         }
     }
 
     /**
      * Direct Fetch: First attempts on-device direct NDMA Sachet CAP fetch.
-     * Falls back to GitHub Pages CDN bundle if direct connection is blocked or times out.
+     * Rejects any alerts older than 24 hours and updates the Room Database.
      */
     suspend fun refreshAlerts(): Result<Int> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        alertDao.deleteExpiredAlerts(now)
+        val min24HoursAgo = now - (24 * 3600 * 1000L)
+
+        // Purge old alerts
+        alertDao.deleteOldAlerts(min24HoursAgo, now)
 
         // 1. Direct NDMA Fetch (Primary direct on-device path)
         val directResult = ndmaFetcher.fetchAlertsDirectly()
         if (directResult.isSuccess) {
             val alerts = directResult.getOrThrow()
-            if (alerts.isNotEmpty()) {
-                alertDao.syncMeshAlerts(alerts.map { EmergencyAlertEntity.fromDomain(it) })
-                return@withContext Result.success(alerts.size)
+            // Strictly filter alerts to last 24 hours only
+            val recentAlerts = alerts.filter { it.effectiveEpoch >= min24HoursAgo }
+            if (recentAlerts.isNotEmpty()) {
+                alertDao.syncMeshAlerts(recentAlerts.map { EmergencyAlertEntity.fromDomain(it) })
+                return@withContext Result.success(recentAlerts.size)
             }
         }
 
@@ -76,11 +58,14 @@ class AlertRepository(
         val cdnResult = cdnFetcher.fetchPrecompiledBundle()
         if (cdnResult.isSuccess) {
             val alerts = cdnResult.getOrThrow()
-            alertDao.syncMeshAlerts(alerts.map { EmergencyAlertEntity.fromDomain(it) })
-            return@withContext Result.success(alerts.size)
+            val recentAlerts = alerts.filter { it.effectiveEpoch >= min24HoursAgo }
+            if (recentAlerts.isNotEmpty()) {
+                alertDao.syncMeshAlerts(recentAlerts.map { EmergencyAlertEntity.fromDomain(it) })
+                return@withContext Result.success(recentAlerts.size)
+            }
         }
 
-        Result.failure(Exception("Direct NDMA and CDN fallback both unreachable. Device offline."))
+        Result.failure(Exception("Unable to reach NDMA or CDN. Displaying cached alerts."))
     }
 
     /**
@@ -89,7 +74,8 @@ class AlertRepository(
      */
     suspend fun exportGzipMeshBundle(deviceId: String): ByteArray = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val activeAlerts = alertDao.getAllActiveAlertsSnapshot(now).map { it.toDomain() }
+        val min24HoursAgo = now - (24 * 3600 * 1000L)
+        val activeAlerts = alertDao.getActiveAlertsSnapshot(min24HoursAgo, now).map { it.toDomain() }
 
         val root = JSONObject()
         root.put("v", 1)
@@ -115,7 +101,7 @@ class AlertRepository(
             obj.put("centroidLon", alert.centroidLon)
             obj.put("sourceAuthority", alert.sourceAuthority)
             obj.put("syncTimestampEpoch", alert.syncTimestampEpoch)
-            obj.put("hop", alert.hopCount + 1) // Increment hop for relay
+            obj.put("hop", alert.hopCount + 1)
             alertsArray.put(obj)
         }
         root.put("alerts", alertsArray)
@@ -124,7 +110,7 @@ class AlertRepository(
     }
 
     /**
-     * Ingests a received GZIP mesh payload from a peer node, checks TTL,
+     * Ingests a received GZIP mesh payload from a peer node, checks 24h freshness,
      * and performs 'Latest Wins' timestamp resolution into Room DB.
      */
     suspend fun ingestMeshGzipBundle(gzipBytes: ByteArray): Result<Int> = withContext(Dispatchers.IO) {
@@ -135,16 +121,18 @@ class AlertRepository(
 
             val incomingEntities = mutableListOf<EmergencyAlertEntity>()
             val now = System.currentTimeMillis()
+            val min24HoursAgo = now - (24 * 3600 * 1000L)
 
             for (i in 0 until alertsArray.length()) {
                 val item = alertsArray.getJSONObject(i)
                 val hop = item.optInt("hop", 1)
-
-                // Drop alerts that exceeded max TTL hops (prevents endless loop flooding)
                 if (hop > 5) continue
 
+                val effective = item.getLong("effectiveEpoch")
                 val expires = item.getLong("expiresEpoch")
-                if (expires < now) continue
+
+                // Strict 24 hour rejection
+                if (effective < min24HoursAgo || expires < now) continue
 
                 incomingEntities.add(
                     EmergencyAlertEntity(
@@ -157,7 +145,7 @@ class AlertRepository(
                         urgency = item.optString("urgency", "Immediate"),
                         certainty = item.optString("certainty", "Likely"),
                         event = item.optString("event", "Cyclone Advisory"),
-                        effectiveEpoch = item.getLong("effectiveEpoch"),
+                        effectiveEpoch = effective,
                         expiresEpoch = expires,
                         areaDescription = item.optString("areaDescription", ""),
                         centroidLat = item.optDouble("centroidLat", 20.5937),
@@ -184,4 +172,3 @@ class AlertRepository(
         return alertDao.getLatestSyncTimestamp() ?: 0L
     }
 }
-

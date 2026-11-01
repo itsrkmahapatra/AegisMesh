@@ -17,18 +17,25 @@ import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textHaloColor
+import org.maplibre.android.style.layers.PropertyFactory.textHaloWidth
+import org.maplibre.android.style.layers.PropertyFactory.textSize
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 
 /**
- * High-performance vector rendering of 7-day hourly wind vectors and precipitation
- * onto MapLibre Native SDK via GeoJsonSource and CircleLayers.
+ * High-performance vector rendering of 7-day hourly wind vectors, precipitation,
+ * and wind speed labels onto MapLibre Native SDK via GeoJsonSource.
  */
 class WindVectorOverlayHelper(private val map: MapLibreMap) {
 
     companion object {
         const val SOURCE_ID = "weather_vector_source"
-        const val LAYER_WIND_CIRCLES = "weather_wind_circles_layer"
         const val LAYER_PRECIP_HALO = "weather_precip_halo_layer"
+        const val LAYER_WIND_CIRCLES = "weather_wind_circles_layer"
+        const val LAYER_WIND_LABELS = "weather_wind_labels_layer"
     }
 
     fun setupLayers(style: Style) {
@@ -37,7 +44,7 @@ class WindVectorOverlayHelper(private val map: MapLibreMap) {
             style.addSource(GeoJsonSource(SOURCE_ID, emptyGeoJson))
         }
 
-        // Precipitation outer halo layer
+        // 1. Precipitation outer halo layer
         if (style.getLayer(LAYER_PRECIP_HALO) == null) {
             val haloLayer = CircleLayer(LAYER_PRECIP_HALO, SOURCE_ID).apply {
                 setProperties(
@@ -45,9 +52,9 @@ class WindVectorOverlayHelper(private val map: MapLibreMap) {
                         interpolate(
                             linear(), get("precipitation"),
                             stop(0.0, 0f),
-                            stop(2.0, 16f),
-                            stop(10.0, 30f),
-                            stop(30.0, 50f)
+                            stop(2.0, 22f),
+                            stop(10.0, 38f),
+                            stop(30.0, 60f)
                         )
                     ),
                     circleColor(Color.parseColor("#38BDF8")),
@@ -59,42 +66,60 @@ class WindVectorOverlayHelper(private val map: MapLibreMap) {
             style.addLayer(haloLayer)
         }
 
-        // Wind speed inner intensity circle
+        // 2. Wind speed intensity circle
         if (style.getLayer(LAYER_WIND_CIRCLES) == null) {
             val windLayer = CircleLayer(LAYER_WIND_CIRCLES, SOURCE_ID).apply {
                 setProperties(
                     circleRadius(
                         interpolate(
                             linear(), get("wind_speed"),
-                            stop(0.0, 8f),
-                            stop(30.0, 14f),
-                            stop(60.0, 22f),
-                            stop(100.0, 32f)
+                            stop(0.0, 16f),
+                            stop(30.0, 22f),
+                            stop(60.0, 30f),
+                            stop(100.0, 42f)
                         )
                     ),
                     circleColor(
                         interpolate(
                             linear(), get("wind_speed"),
                             stop(0.0, color(Color.parseColor("#10B981"))),    // Calm: Green
-                            stop(30.0, color(Color.parseColor("#06B6D4"))),   // Breeze: Cyan
-                            stop(50.0, color(Color.parseColor("#FBBF24"))),   // Strong: Yellow
-                            stop(75.0, color(Color.parseColor("#F97316"))),   // Gale: Orange
-                            stop(100.0, color(Color.parseColor("#EF4444")))   // Cyclone: Red
+                            stop(30.0, color(Color.parseColor("#06B6D4"))),   // Moderate: Cyan
+                            stop(50.0, color(Color.parseColor("#FBBF24"))),   // Strong: Amber
+                            stop(70.0, color(Color.parseColor("#F97316"))),   // Gale: Orange
+                            stop(95.0, color(Color.parseColor("#EF4444")))    // Cyclone: Red
                         )
                     ),
                     circleOpacity(0.85f),
-                    circleStrokeWidth(2f),
+                    circleStrokeWidth(2.5f),
                     circleStrokeColor(Color.WHITE)
                 )
             }
             style.addLayer(windLayer)
         }
+
+        // 3. Prominent wind speed text labels (e.g. "45 km/h")
+        if (style.getLayer(LAYER_WIND_LABELS) == null) {
+            val labelLayer = SymbolLayer(LAYER_WIND_LABELS, SOURCE_ID).apply {
+                setProperties(
+                    textField(get("label_text")),
+                    textSize(11f),
+                    textColor(Color.WHITE),
+                    textHaloColor(Color.parseColor("#0A0E17")),
+                    textHaloWidth(2f)
+                )
+            }
+            style.addLayer(labelLayer)
+        }
     }
 
     fun updateWeatherData(style: Style, points: List<WeatherGridPoint>) {
-        val source = style.getSourceAs<GeoJsonSource>(SOURCE_ID) ?: return
-        val geoJson = createGeoJsonFeatureCollection(points)
-        source.setGeoJson(geoJson)
+        try {
+            val source = style.getSourceAs<GeoJsonSource>(SOURCE_ID)
+            if (source != null) {
+                val geoJson = createGeoJsonFeatureCollection(points)
+                source.setGeoJson(geoJson)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun createGeoJsonFeatureCollection(points: List<WeatherGridPoint>): String {
@@ -115,7 +140,9 @@ class WindVectorOverlayHelper(private val map: MapLibreMap) {
             feature.put("geometry", geometry)
 
             val properties = JSONObject()
+            val speedInt = pt.windSpeedKph.toInt()
             properties.put("wind_speed", pt.windSpeedKph)
+            properties.put("label_text", "$speedInt km/h")
             properties.put("wind_direction", pt.windDirectionDegrees)
             properties.put("wind_gusts", pt.windGustsKph)
             properties.put("precipitation", pt.precipitationMm)
@@ -129,4 +156,3 @@ class WindVectorOverlayHelper(private val map: MapLibreMap) {
         return root.toString()
     }
 }
-

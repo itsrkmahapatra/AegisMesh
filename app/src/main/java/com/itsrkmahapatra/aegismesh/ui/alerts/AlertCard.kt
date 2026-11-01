@@ -16,10 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.ShareLocation
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,21 +48,16 @@ import com.itsrkmahapatra.aegismesh.ui.theme.AlertSevereDarkOrange
 import com.itsrkmahapatra.aegismesh.ui.theme.AlertSevereOrange
 import com.itsrkmahapatra.aegismesh.ui.theme.MeshGreen
 import com.itsrkmahapatra.aegismesh.ui.theme.RadarCyan
-import com.itsrkmahapatra.aegismesh.util.GeoUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AlertCard(
     alert: EmergencyAlert,
-    userLat: Double,
-    userLon: Double,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-
-    val distanceKm = GeoUtils.calculateDistanceKm(
-        userLat, userLon,
-        alert.centroidLat, alert.centroidLon
-    )
 
     val (accentColor, containerColor) = when (alert.severity) {
         AlertSeverity.EXTREME -> Pair(AlertExtremeRed, AlertExtremeDarkRed)
@@ -71,6 +65,11 @@ fun AlertCard(
         AlertSeverity.MODERATE -> Pair(AlertModerateAmber, AlertModerateDarkAmber)
         else -> Pair(RadarCyan, MaterialTheme.colorScheme.surfaceVariant)
     }
+
+    // Format alert issue timestamp
+    val timeFormatter = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    val formattedTime = timeFormatter.format(Date(alert.effectiveEpoch))
+    val relativeTime = calculateRelativeTime(alert.effectiveEpoch)
 
     Card(
         modifier = modifier
@@ -93,7 +92,7 @@ fun AlertCard(
             )
 
             Column(modifier = Modifier.padding(16.dp)) {
-                // Header: Severity Badge + Distance Pill
+                // Header: Severity Badge + EXACT TIME OF ALERT (Prominent)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -121,20 +120,26 @@ fun AlertCard(
                         )
                     }
 
+                    // Prominent Issue Time of Alert
                     Row(
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.NearMe,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
+                            imageVector = Icons.Default.AccessTime,
+                            contentDescription = "Alert Time",
+                            tint = RadarCyan,
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${distanceKm.toInt()} km away",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "$formattedTime ($relativeTime)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -274,3 +279,16 @@ fun AlertCard(
     }
 }
 
+private fun calculateRelativeTime(epochMillis: Long): String {
+    val diff = System.currentTimeMillis() - epochMillis
+    if (diff < 0) return "Just now"
+    val minutes = diff / (60 * 1000L)
+    val hours = diff / (3600 * 1000L)
+
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "${minutes}m ago"
+        hours < 24 -> "${hours}h ago"
+        else -> "Earlier today"
+    }
+}

@@ -22,8 +22,6 @@ import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,11 +47,8 @@ fun AlertsScreen(
     modifier: Modifier = Modifier
 ) {
     val alerts by viewModel.alerts.collectAsState()
-    val filterMode by viewModel.filterMode.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val statusMessage by viewModel.lastRefreshResult.collectAsState()
-    val userLat by viewModel.userLatitude.collectAsState()
-    val userLon by viewModel.userLongitude.collectAsState()
 
     Scaffold(
         topBar = {
@@ -73,7 +67,7 @@ fun AlertsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Emergency Alerts",
                                 style = MaterialTheme.typography.headlineMedium,
@@ -81,7 +75,7 @@ fun AlertsScreen(
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
-                                text = "Official NDMA Sachet, IMD & CWC Warnings",
+                                text = "Official NDMA SACHET Warnings (Last 24 Hours)",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -118,35 +112,20 @@ fun AlertsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Filter Mode Chips & Refresh Button
+                    // Status Bar & Refresh Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = filterMode == AlertsViewModel.AlertFilterMode.RADIUS_50KM,
-                                onClick = { viewModel.setFilterMode(AlertsViewModel.AlertFilterMode.RADIUS_50KM) },
-                                label = { Text("Within 50 km") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RadarCyan.copy(alpha = 0.2f),
-                                    selectedLabelColor = RadarCyan
-                                )
-                            )
-
-                            FilterChip(
-                                selected = filterMode == AlertsViewModel.AlertFilterMode.ALL_INDIA,
-                                onClick = { viewModel.setFilterMode(AlertsViewModel.AlertFilterMode.ALL_INDIA) },
-                                label = { Text("All India (${alerts.size})") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RadarCyan.copy(alpha = 0.2f),
-                                    selectedLabelColor = RadarCyan
-                                )
-                            )
-                        }
+                        Text(
+                            text = statusMessage ?: "Active Alerts: ${alerts.size}",
+                            fontSize = 12.sp,
+                            color = RadarCyan,
+                            fontWeight = FontWeight.Medium
+                        )
 
                         IconButton(
                             onClick = { viewModel.refreshAlerts() },
@@ -166,15 +145,6 @@ fun AlertsScreen(
                                 )
                             }
                         }
-                    }
-
-                    if (statusMessage != null) {
-                        Text(
-                            text = statusMessage ?: "",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
                     }
                 }
             }
@@ -202,14 +172,14 @@ fun AlertsScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "No Severe Advisories in 50 km Radius",
+                        text = "No Severe Advisories in Last 24 Hours",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Your immediate area is currently clear of extreme cyclone or flood warnings. Toggle 'All India' to inspect nationwide alerts or stay vigilant.",
+                        text = "No extreme or severe disaster alerts issued by NDMA in the past 24 hours. Tap Refresh to check live public feeds or stay vigilant.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -225,14 +195,9 @@ fun AlertsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 items(alerts, key = { it.id }) { alert ->
-                    AlertCard(
-                        alert = alert,
-                        userLat = userLat,
-                        userLon = userLon
-                    )
+                    AlertCard(alert = alert)
                 }
             }
         }
     }
 }
-
