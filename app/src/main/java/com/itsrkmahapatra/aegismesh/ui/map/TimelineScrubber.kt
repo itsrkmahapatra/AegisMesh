@@ -1,7 +1,6 @@
 package com.itsrkmahapatra.aegismesh.ui.map
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -40,7 +38,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Industry-grade Windy.com-style floating timeline scrubber and wind velocity color legend.
+ * Industry-grade Windy & Zoom Earth-style floating timeline scrubber and dynamic layer legend.
  * 
  * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
@@ -48,6 +46,7 @@ import java.util.Locale
 fun TimelineScrubber(
     currentHourOffset: Int,
     isPlaying: Boolean,
+    activeLayer: WeatherMapLayer,
     onHourChanged: (Int) -> Unit,
     onPlayPauseToggle: () -> Unit,
     currentPoint: WeatherGridPoint?,
@@ -60,7 +59,7 @@ fun TimelineScrubber(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         shape = RoundedCornerShape(18.dp),
         color = Color(0xDD111827), // Dark translucent glassmorphism
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3338BDF8)),
@@ -137,41 +136,153 @@ fun TimelineScrubber(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // Windy.com-Style Wind Speed Velocity Color Legend Bar
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    Color(0xFF38BDF8), // Calm (<15 km/h)
-                                    Color(0xFF00E676), // Moderate (15 - 30 km/h)
-                                    Color(0xFFFFD600), // Fresh (30 - 45 km/h)
-                                    Color(0xFFFF6D00), // Strong Gale (45 - 65 km/h)
-                                    Color(0xFFFF1744), // Cyclone Red (65 - 85 km/h)
-                                    Color(0xFFD500F9)  // Violent Cyclone (>85 km/h)
-                                )
-                            )
-                        )
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "0", fontSize = 9.sp, color = Color(0xFF9CA3AF))
-                    Text(text = "15", fontSize = 9.sp, color = Color(0xFF9CA3AF))
-                    Text(text = "30", fontSize = 9.sp, color = Color(0xFF9CA3AF))
-                    Text(text = "45", fontSize = 9.sp, color = Color(0xFF9CA3AF))
-                    Text(text = "65", fontSize = 9.sp, color = Color(0xFF9CA3AF))
-                    Text(text = "90+ km/h (Cyclone)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF472B6))
+            // Dynamic Layer Color Legend Bar
+            when (activeLayer) {
+                WeatherMapLayer.WIND -> {
+                    WindLegendBar()
+                }
+                WeatherMapLayer.RAIN_RADAR -> {
+                    RainRadarLegendBar()
+                }
+                WeatherMapLayer.CYCLONE_TRACK -> {
+                    CycloneLegendBar()
+                }
+                WeatherMapLayer.LIGHTNING -> {
+                    LightningLegendBar()
+                }
+                WeatherMapLayer.TEMPERATURE -> {
+                    TemperatureLegendBar()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WindLegendBar() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF38BDF8), // Calm (<15 km/h)
+                            Color(0xFF00E676), // Moderate (15 - 30 km/h)
+                            Color(0xFFFFD600), // Fresh (30 - 45 km/h)
+                            Color(0xFFFF6D00), // Strong Gale (45 - 65 km/h)
+                            Color(0xFFFF1744), // Cyclone Red (65 - 85 km/h)
+                            Color(0xFFD500F9)  // Violent Cyclone (>85 km/h)
+                        )
+                    )
+                )
+        )
+        Spacer(modifier = Modifier.height(3.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "0", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "15", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "30", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "45", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "65", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "90+ km/h (Cyclone)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF472B6))
+        }
+    }
+}
+
+@Composable
+private fun RainRadarLegendBar() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF06B6D4), // Light Cyan
+                            Color(0xFF10B981), // Moderate Green
+                            Color(0xFFF59E0B), // Heavy Amber
+                            Color(0xFFEF4444), // Torrential Red
+                            Color(0xFFA855F7)  // Cloudburst Purple
+                        )
+                    )
+                )
+        )
+        Spacer(modifier = Modifier.height(3.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "0 mm/h", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "2.5 mm", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "7.5 mm", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "15 mm", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "30+ mm (Extreme)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA855F7))
+        }
+    }
+}
+
+@Composable
+private fun CycloneLegendBar() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = "⚠️ Depression (31-61)", fontSize = 9.sp, color = Color(0xFF38BDF8))
+        Text(text = "🌀 Cyclone (62-88)", fontSize = 9.sp, color = Color(0xFFFBBF24))
+        Text(text = "🌀 Very Severe (118-165)", fontSize = 9.sp, color = Color(0xFFF97316))
+        Text(text = "🚨 Super Cyclone (>222)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+    }
+}
+
+@Composable
+private fun LightningLegendBar() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = "⚡ Real-time Thunderstorm Detection", fontSize = 9.sp, color = Color(0xFF38BDF8))
+        Text(text = "High Voltage Electric Discharges", fontSize = 9.sp, color = Color.White)
+        Text(text = "LIVE STRIKES ACTIVE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFDE047))
+    }
+}
+
+@Composable
+private fun TemperatureLegendBar() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF06B6D4), // 15°C
+                            Color(0xFF10B981), // 22°C
+                            Color(0xFFFBBF24), // 27°C
+                            Color(0xFFF97316), // 33°C
+                            Color(0xFFEF4444)  // 40°C
+                        )
+                    )
+                )
+        )
+        Spacer(modifier = Modifier.height(3.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "15°C", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "22°C", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "28°C", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "34°C", fontSize = 9.sp, color = Color(0xFF9CA3AF))
+            Text(text = "42°C+ (Extreme Heat)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
         }
     }
 }

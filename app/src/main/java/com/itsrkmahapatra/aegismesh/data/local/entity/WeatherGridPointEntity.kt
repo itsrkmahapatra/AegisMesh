@@ -26,7 +26,10 @@ data class WeatherGridPointEntity(
     val windGustsKph: Float,
     val precipitationMm: Float,
     val temperatureCelsius: Float,
-    val weatherCode: Int
+    val weatherCode: Int,
+    val surfacePressureHpa: Float = 1010f,
+    val humidityPercent: Int = 75,
+    val cloudCoverPercent: Int = 40
 ) {
     fun toDomain(): WeatherGridPoint = WeatherGridPoint(
         id = id,
@@ -40,7 +43,10 @@ data class WeatherGridPointEntity(
         windGustsKph = windGustsKph,
         precipitationMm = precipitationMm,
         temperatureCelsius = temperatureCelsius,
-        weatherCode = weatherCode
+        weatherCode = weatherCode,
+        surfacePressureHpa = surfacePressureHpa,
+        humidityPercent = humidityPercent,
+        cloudCoverPercent = cloudCoverPercent
     )
 
     companion object {
@@ -56,7 +62,10 @@ data class WeatherGridPointEntity(
             windGustsKph = domain.windGustsKph,
             precipitationMm = domain.precipitationMm,
             temperatureCelsius = domain.temperatureCelsius,
-            weatherCode = domain.weatherCode
+            weatherCode = domain.weatherCode,
+            surfacePressureHpa = domain.surfacePressureHpa,
+            humidityPercent = domain.humidityPercent,
+            cloudCoverPercent = domain.cloudCoverPercent
         )
     }
 }

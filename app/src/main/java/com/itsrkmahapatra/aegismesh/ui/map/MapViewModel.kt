@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsrkmahapatra.aegismesh.data.remote.OpenMeteoDirectFetcher
 import com.itsrkmahapatra.aegismesh.data.repository.WeatherRepository
+import com.itsrkmahapatra.aegismesh.domain.model.ActiveCyclone
 import com.itsrkmahapatra.aegismesh.domain.model.WeatherGridPoint
 import com.itsrkmahapatra.aegismesh.util.GeoUtils
 import kotlinx.coroutines.Job
@@ -19,7 +20,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel managing Windy-style weather particle animations and viewport-driven data loading.
+ * ViewModel managing multi-layer weather radar animations:
+ * - Wind Streamline Particles (Windy style)
+ * - Doppler Rain Radar & Falling Precipitation
+ * - Zoom Earth Cyclone Tracker with 72h Cone of Uncertainty
+ * - Real-time Lightning Strike Flashes
+ * - Thermal Heatmap
  * 
  * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
@@ -27,14 +33,22 @@ class MapViewModel(
     private val weatherRepository: WeatherRepository
 ) : ViewModel() {
 
-    // User's exact live GPS location (defaults to initial center until GPS fix)
+    // Active radar display layer (defaults to Wind Stream)
+    private val _selectedLayer = MutableStateFlow(WeatherMapLayer.WIND)
+    val selectedLayer: StateFlow<WeatherMapLayer> = _selectedLayer.asStateFlow()
+
+    // Map style URI (OpenFreeMap)
+    private val _mapStyleUri = MutableStateFlow("https://tiles.openfreemap.org/styles/liberty")
+    val mapStyleUri: StateFlow<String> = _mapStyleUri.asStateFlow()
+
+    // User's live GPS coordinates
     val userLatitude = MutableStateFlow(20.5937)
     val userLongitude = MutableStateFlow(78.9629)
 
     private val _currentHourOffset = MutableStateFlow(0)
     val currentHourOffset: StateFlow<Int> = _currentHourOffset.asStateFlow()
 
-    // Default to "My Location" so current location weather is ALWAYS front-and-center
+    // Default to "My Location"
     private val _selectedStationName = MutableStateFlow<String?>("My Location")
     val selectedStationName: StateFlow<String?> = _selectedStationName.asStateFlow()
 
@@ -47,7 +61,27 @@ class MapViewModel(
     private var playbackJob: Job? = null
     private var viewportFetchJob: Job? = null
 
-    // Reactive flow of all weather points for currently scrubbed hour (Hour 0 to 167)
+    // Active Cyclone Tracking Model (Zoom Earth grade)
+    val activeCyclone: StateFlow<ActiveCyclone?> = MutableStateFlow(
+        weatherRepository.getActiveCyclone()
+    ).asStateFlow()
+
+    // Real-time distance from user to cyclone eye in km
+    val distanceToCycloneKm: StateFlow<Float?> = combine(
+        userLatitude,
+        userLongitude,
+        activeCyclone
+    ) { lat, lon, cyclone ->
+        if (cyclone != null) {
+            GeoUtils.calculateDistanceKm(lat, lon, cyclone.currentLat, cyclone.currentLon).toFloat()
+        } else null
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    // Weather grid points for currently scrubbed hour (0 to 167)
     val currentHourWeather: StateFlow<List<WeatherGridPoint>> = combine(
         _currentHourOffset,
         userLatitude,
@@ -62,7 +96,7 @@ class MapViewModel(
         initialValue = WeatherRepository.generateBaselinePoints(0)
     )
 
-    // Weather data point for the user's selected location (defaults to My Location)
+    // Weather point for actively selected station / location
     val activeStationPoint: StateFlow<WeatherGridPoint?> = combine(
         currentHourWeather,
         _selectedStationName,
@@ -90,6 +124,19 @@ class MapViewModel(
         refreshWeather()
     }
 
+    fun selectLayer(layer: WeatherMapLayer) {
+        _selectedLayer.value = layer
+    }
+
+    fun toggleMapStyle() {
+        val current = _mapStyleUri.value
+        _mapStyleUri.value = when {
+            current.contains("liberty") -> "https://tiles.openfreemap.org/styles/positron"
+            current.contains("positron") -> "https://tiles.openfreemap.org/styles/bright"
+            else -> "https://tiles.openfreemap.org/styles/liberty"
+        }
+    }
+
     fun selectStationByName(name: String) {
         _selectedStationName.value = name
     }
@@ -112,10 +159,6 @@ class MapViewModel(
         refreshWeather()
     }
 
-    /**
-     * Viewport-aware loader: loads weather data for the exact area currently visible
-     * on the user's display and caches all 168 hours permanently into Room DB on device.
-     */
     fun onViewportChanged(
         minLat: Double,
         maxLat: Double,
@@ -126,7 +169,7 @@ class MapViewModel(
     ) {
         viewportFetchJob?.cancel()
         viewportFetchJob = viewModelScope.launch {
-            delay(800) // Debounce viewport settling
+            delay(800)
 
             val latSpan = maxLat - minLat
             val lonSpan = maxLon - minLon
@@ -178,7 +221,7 @@ class MapViewModel(
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
             while (isActive && _isPlaying.value) {
-                delay(400) // Smooth 400ms step for fluid 7-day storm animation
+                delay(400)
                 val next = (_currentHourOffset.value + 1) % 168
                 _currentHourOffset.value = next
             }

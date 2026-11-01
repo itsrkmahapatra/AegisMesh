@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.itsrkmahapatra.aegismesh.domain.model.ActiveCyclone
 import com.itsrkmahapatra.aegismesh.domain.model.WeatherGridPoint
 import com.itsrkmahapatra.aegismesh.ui.theme.AlertExtremeRed
 import com.itsrkmahapatra.aegismesh.ui.theme.AlertSevereOrange
@@ -39,9 +41,7 @@ import com.itsrkmahapatra.aegismesh.ui.theme.RadarCyan
 import java.util.Locale
 
 /**
- * Top floating Windy-style Weather HUD Inspector.
- * Displays real-time wind vector velocity, gusts, temperature, precipitation,
- * and port danger signals for the user's current GPS location or tapped map spot.
+ * Top floating Windy & Zoom Earth-grade Weather HUD Inspector.
  * 
  * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
@@ -49,6 +49,9 @@ import java.util.Locale
 fun WindyTopInspector(
     point: WeatherGridPoint?,
     selectedName: String?,
+    activeLayer: WeatherMapLayer,
+    activeCyclone: ActiveCyclone?,
+    distanceToCycloneKm: Float?,
     isLoading: Boolean,
     onRecenterGps: () -> Unit,
     onRefresh: () -> Unit,
@@ -65,6 +68,8 @@ fun WindyTopInspector(
     val gust = point?.windGustsKph?.toInt() ?: 24
     val temp = point?.temperatureCelsius?.toInt() ?: 28
     val precip = point?.precipitationMm ?: 0f
+    val pressure = point?.surfacePressureHpa?.toInt() ?: 1008
+    val humidity = point?.humidityPercent ?: 75
     val arrow = point?.windArrow ?: "↑ N"
     val signal = point?.signalBadge ?: "🟢 NORMAL"
     val condition = point?.conditionText ?: "Live Forecast"
@@ -72,7 +77,7 @@ fun WindyTopInspector(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         shape = RoundedCornerShape(18.dp),
         color = Color(0xDD0F172A), // Dark slate translucent glassmorphism
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3338BDF8)),
@@ -80,7 +85,7 @@ fun WindyTopInspector(
         shadowElevation = 10.dp
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
             // Header Row: Location Title + Signal Badge + Actions
             Row(
@@ -96,21 +101,20 @@ fun WindyTopInspector(
                         color = Color.White
                     )
                     Text(
-                        text = condition,
+                        text = "$condition • Barometer: ${pressure} hPa",
                         fontSize = 11.sp,
-                        color = RadarCyan
+                        color = if (pressure < 995) AlertExtremeRed else RadarCyan
                     )
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Port Danger Signal Pill
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(
                                 when {
-                                    speed >= 65 -> AlertExtremeRed
-                                    speed >= 45 -> AlertSevereOrange
+                                    speed >= 65 || pressure < 990 -> AlertExtremeRed
+                                    speed >= 45 || pressure < 1000 -> AlertSevereOrange
                                     else -> Color(0x3310B981)
                                 }
                             )
@@ -126,7 +130,6 @@ fun WindyTopInspector(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // GPS Recenter Button
                     IconButton(
                         onClick = onRecenterGps,
                         modifier = Modifier.size(30.dp)
@@ -139,7 +142,6 @@ fun WindyTopInspector(
                         )
                     }
 
-                    // Direct Refresh Button
                     IconButton(
                         onClick = onRefresh,
                         enabled = !isLoading,
@@ -163,18 +165,57 @@ fun WindyTopInspector(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Zoom Earth Cyclone Alert Banner (if in Cyclone Track layer or active storm nearby)
+            if (activeLayer == WeatherMapLayer.CYCLONE_TRACK && activeCyclone != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AlertExtremeRed.copy(alpha = 0.2f))
+                        .border(1.dp, AlertExtremeRed.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "🌀", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${activeCyclone.name} (${activeCyclone.intensityCategory})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Eye: ${activeCyclone.currentLat}°N, ${activeCyclone.currentLon}°E • Pressure: ${activeCyclone.centralPressureHpa.toInt()} hPa • ${activeCyclone.movementDirectionText}",
+                            fontSize = 10.sp,
+                            color = Color(0xFFFCA5A5)
+                        )
+                        if (distanceToCycloneKm != null) {
+                            Text(
+                                text = "Distance to You: ${distanceToCycloneKm.toInt()} km • Landfall: ${activeCyclone.projectedLandfallLocation}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = RadarCyan
+                            )
+                        }
+                    }
+                }
+            }
 
-            // Metrics Grid: Wind Speed, Gust, Wind Direction, Temp, Rain
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Realtime Multi-Parameter Weather Tiles
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 WindMetricTile(label = "WIND", value = "$speed km/h", highlight = speed >= 45)
-                WindMetricTile(label = "GUST", value = "$gust km/h", highlight = gust >= 60)
-                WindMetricTile(label = "DIRECTION", value = arrow, highlight = false)
+                WindMetricTile(label = "PEAK GUST", value = "$gust km/h", highlight = gust >= 60)
+                WindMetricTile(label = "VECTOR", value = arrow, highlight = false)
                 WindMetricTile(label = "TEMP", value = "$temp°C", highlight = false)
+                WindMetricTile(label = "HUMIDITY", value = "$humidity%", highlight = false)
                 WindMetricTile(label = "RAIN", value = "${String.format(Locale.US, "%.1f", precip)} mm", highlight = precip >= 5f)
             }
         }
@@ -196,7 +237,7 @@ private fun WindMetricTile(
         )
         Text(
             text = value,
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = if (highlight) AlertExtremeRed else Color.White
         )

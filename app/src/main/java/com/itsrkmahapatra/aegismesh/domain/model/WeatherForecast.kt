@@ -3,6 +3,8 @@ package com.itsrkmahapatra.aegismesh.domain.model
 /**
  * Hourly weather data point for rendering animated radar overlays,
  * wind vectors, emojis, danger signals, and precipitation on MapLibre.
+ * 
+ * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
 data class WeatherGridPoint(
     val id: String,                     // Key format: "lat_lon_epochHour"
@@ -16,7 +18,10 @@ data class WeatherGridPoint(
     val windGustsKph: Float,            // Wind gusts 10m in km/h
     val precipitationMm: Float,         // Hourly precipitation in mm
     val temperatureCelsius: Float,      // Temperature at 2m in Celsius
-    val weatherCode: Int = 0            // WMO Weather interpretation code
+    val weatherCode: Int = 0,           // WMO Weather interpretation code
+    val surfacePressureHpa: Float = 1010f, // Atmospheric surface pressure in hPa
+    val humidityPercent: Int = 75,       // Relative humidity percentage (0-100%)
+    val cloudCoverPercent: Int = 40      // Cloud cover percentage (0-100%)
 ) {
     val conditionEmoji: String get() = when {
         windSpeedKph >= 65f || windGustsKph >= 90f -> "🌀" // Cyclone
@@ -53,8 +58,8 @@ data class WeatherGridPoint(
     }
 
     val signalBadge: String get() = when {
-        windSpeedKph >= 90f || windGustsKph >= 120f -> "🚨 DANGER 10"
-        windSpeedKph >= 65f || windGustsKph >= 90f -> "🚩 DANGER 8"
+        windSpeedKph >= 90f || windGustsKph >= 120f || surfacePressureHpa < 985f -> "🚨 DANGER 10 (SUPER CYCLONE)"
+        windSpeedKph >= 65f || windGustsKph >= 90f || surfacePressureHpa < 995f -> "🚩 DANGER 8 (SEVERE CYCLONE)"
         windSpeedKph >= 45f -> "⚠️ GALE SIGNAL 4"
         precipitationMm >= 15f -> "🌊 FLOOD ADVISORY"
         weatherCode in listOf(95, 96, 99) -> "⚡ LIGHTNING ALERT"

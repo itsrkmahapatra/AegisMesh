@@ -15,7 +15,8 @@ import java.util.TimeZone
  * Direct on-device Open-Meteo Weather Client.
  * 100% keyless, zero billing, open-access.
  * 
- * Fetches full 7-day (168-hour) meteorological forecasts directly to the user's device.
+ * Fetches full 7-day (168-hour) meteorological forecasts directly to the user's device:
+ * Wind Speed, Direction, Gusts, Rain, Temperature, Surface Pressure (hPa), Humidity, and Cloud Cover.
  * 
  * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
@@ -30,6 +31,8 @@ class OpenMeteoDirectFetcher(
     data class StationMetadata(val name: String, val lat: Double, val lon: Double)
 
     companion object {
+        const val HOURLY_PARAMS = "wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,weathercode,temperature_2m,surface_pressure,relative_humidity_2m,cloud_cover"
+
         val REGIONAL_BASELINE_STATIONS = listOf(
             StationMetadata("Puri Coast", 19.81, 85.83),
             StationMetadata("Sundarbans Delta", 21.95, 88.93),
@@ -53,10 +56,6 @@ class OpenMeteoDirectFetcher(
         )
     }
 
-    /**
-     * Dedicated direct single-location fetch for the user's exact GPS location.
-     * Guaranteed high-res 168-hour forecast with zero batch overhead.
-     */
     suspend fun fetchSingleLocation(
         cityName: String,
         lat: Double,
@@ -66,7 +65,7 @@ class OpenMeteoDirectFetcher(
             val url = "https://api.open-meteo.com/v1/forecast?" +
                     "latitude=${String.format(Locale.US, "%.4f", lat)}&" +
                     "longitude=${String.format(Locale.US, "%.4f", lon)}&" +
-                    "hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,weathercode,temperature_2m&" +
+                    "hourly=$HOURLY_PARAMS&" +
                     "forecast_days=7&timezone=UTC"
 
             val request = Request.Builder()
@@ -91,9 +90,6 @@ class OpenMeteoDirectFetcher(
         }
     }
 
-    /**
-     * Viewport batch fetcher: queries user's location plus all points visible on the user's display.
-     */
     suspend fun fetchLocations(
         stations: List<StationMetadata>
     ): Result<List<WeatherGridPoint>> = withContext(Dispatchers.IO) {
@@ -105,14 +101,13 @@ class OpenMeteoDirectFetcher(
         }
 
         try {
-            // Limit batch to at most 12 stations to ensure swift response
             val targetStations = stations.take(12)
             val latStr = targetStations.joinToString(",") { String.format(Locale.US, "%.2f", it.lat) }
             val lonStr = targetStations.joinToString(",") { String.format(Locale.US, "%.2f", it.lon) }
 
             val url = "https://api.open-meteo.com/v1/forecast?" +
                     "latitude=$latStr&longitude=$lonStr&" +
-                    "hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,weathercode,temperature_2m&" +
+                    "hourly=$HOURLY_PARAMS&" +
                     "forecast_days=7&timezone=UTC"
 
             val request = Request.Builder()
@@ -124,7 +119,6 @@ class OpenMeteoDirectFetcher(
 
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    // Fallback to single user location if batch was rejected
                     val userStation = targetStations.first()
                     return@withContext fetchSingleLocation(userStation.name, userStation.lat, userStation.lon)
                 }
@@ -151,7 +145,6 @@ class OpenMeteoDirectFetcher(
                 Result.success(allPoints)
             }
         } catch (e: Exception) {
-            // Fallback to single user location if batch failed
             val userStation = stations.first()
             fetchSingleLocation(userStation.name, userStation.lat, userStation.lon)
         }
@@ -172,6 +165,9 @@ class OpenMeteoDirectFetcher(
         val precips = hourly.optJSONArray("precipitation") ?: JSONArray()
         val weatherCodes = hourly.optJSONArray("weathercode") ?: JSONArray()
         val temps = hourly.optJSONArray("temperature_2m") ?: JSONArray()
+        val pressures = hourly.optJSONArray("surface_pressure") ?: JSONArray()
+        val humidities = hourly.optJSONArray("relative_humidity_2m") ?: JSONArray()
+        val clouds = hourly.optJSONArray("cloud_cover") ?: JSONArray()
 
         val count = times.length()
         val baseTime = System.currentTimeMillis()
@@ -190,6 +186,9 @@ class OpenMeteoDirectFetcher(
             val precip = precips.optDouble(i, 0.0).toFloat()
             val code = weatherCodes.optInt(i, 0)
             val temp = temps.optDouble(i, 27.0).toFloat()
+            val pressure = pressures.optDouble(i, 1010.0).toFloat()
+            val humidity = humidities.optInt(i, 75)
+            val cloud = clouds.optInt(i, 40)
 
             val cleanName = cityName.replace(" ", "_")
             val id = "grid_${cleanName}_h$i"
@@ -207,7 +206,10 @@ class OpenMeteoDirectFetcher(
                     windGustsKph = gust,
                     precipitationMm = precip,
                     temperatureCelsius = temp,
-                    weatherCode = code
+                    weatherCode = code,
+                    surfacePressureHpa = pressure,
+                    humidityPercent = humidity,
+                    cloudCoverPercent = cloud
                 )
             )
         }

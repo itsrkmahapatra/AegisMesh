@@ -14,7 +14,7 @@ import com.itsrkmahapatra.aegismesh.data.local.entity.WeatherGridPointEntity
         EmergencyAlertEntity::class,
         WeatherGridPointEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AegisDatabase : RoomDatabase() {
