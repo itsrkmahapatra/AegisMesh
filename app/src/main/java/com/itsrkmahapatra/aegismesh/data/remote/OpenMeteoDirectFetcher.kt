@@ -13,8 +13,11 @@ import java.util.TimeZone
 
 /**
  * Direct on-device Open-Meteo Weather Client.
- * Queries a dense, high-resolution regional weather radar grid across 20 distinct Indian cities & coastal hubs.
- * 100% Keyless, zero billing, open-access.
+ * 100% keyless, zero billing, open-access.
+ * 
+ * Fetches full 7-day (168-hour) meteorological forecasts directly to the user's device.
+ * 
+ * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
 class OpenMeteoDirectFetcher(
     private val okHttpClient: OkHttpClient = NdmaDirectRssFetcher.createDefaultClient()
@@ -27,7 +30,7 @@ class OpenMeteoDirectFetcher(
     data class StationMetadata(val name: String, val lat: Double, val lon: Double)
 
     companion object {
-        val NATIONAL_STATIONS = listOf(
+        val REGIONAL_BASELINE_STATIONS = listOf(
             StationMetadata("Puri Coast", 19.81, 85.83),
             StationMetadata("Sundarbans Delta", 21.95, 88.93),
             StationMetadata("Visakhapatnam", 17.68, 83.21),
@@ -50,16 +53,62 @@ class OpenMeteoDirectFetcher(
         )
     }
 
-    suspend fun fetchRegionalWeatherGrid(
-        userLat: Double,
-        userLon: Double
+    /**
+     * Dedicated direct single-location fetch for the user's exact GPS location.
+     * Guaranteed high-res 168-hour forecast with zero batch overhead.
+     */
+    suspend fun fetchSingleLocation(
+        cityName: String,
+        lat: Double,
+        lon: Double
     ): Result<List<WeatherGridPoint>> = withContext(Dispatchers.IO) {
         try {
-            val stationList = mutableListOf(StationMetadata("Your GPS Location", userLat, userLon))
-            stationList.addAll(NATIONAL_STATIONS)
+            val url = "https://api.open-meteo.com/v1/forecast?" +
+                    "latitude=${String.format(Locale.US, "%.4f", lat)}&" +
+                    "longitude=${String.format(Locale.US, "%.4f", lon)}&" +
+                    "hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,weathercode,temperature_2m&" +
+                    "forecast_days=7&timezone=UTC"
 
-            val latStr = stationList.joinToString(",") { String.format(Locale.US, "%.2f", it.lat) }
-            val lonStr = stationList.joinToString(",") { String.format(Locale.US, "%.2f", it.lon) }
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", NdmaDirectRssFetcher.USER_AGENT)
+                .header("Accept", "application/json")
+                .header("Accept-Encoding", "gzip")
+                .build()
+
+            okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("HTTP ${response.code} from Open-Meteo"))
+                }
+                val body = response.body?.string() ?: return@withContext Result.failure(Exception("Empty body"))
+                val json = JSONObject(body)
+                val points = mutableListOf<WeatherGridPoint>()
+                parseLocationHourly(json, cityName, lat, lon, points)
+                Result.success(points)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Viewport batch fetcher: queries user's location plus all points visible on the user's display.
+     */
+    suspend fun fetchLocations(
+        stations: List<StationMetadata>
+    ): Result<List<WeatherGridPoint>> = withContext(Dispatchers.IO) {
+        if (stations.isEmpty()) return@withContext Result.success(emptyList())
+
+        if (stations.size == 1) {
+            val s = stations[0]
+            return@withContext fetchSingleLocation(s.name, s.lat, s.lon)
+        }
+
+        try {
+            // Limit batch to at most 12 stations to ensure swift response
+            val targetStations = stations.take(12)
+            val latStr = targetStations.joinToString(",") { String.format(Locale.US, "%.2f", it.lat) }
+            val lonStr = targetStations.joinToString(",") { String.format(Locale.US, "%.2f", it.lon) }
 
             val url = "https://api.open-meteo.com/v1/forecast?" +
                     "latitude=$latStr&longitude=$lonStr&" +
@@ -75,34 +124,36 @@ class OpenMeteoDirectFetcher(
 
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("Open-Meteo HTTP error: ${response.code}"))
+                    // Fallback to single user location if batch was rejected
+                    val userStation = targetStations.first()
+                    return@withContext fetchSingleLocation(userStation.name, userStation.lat, userStation.lon)
                 }
 
-                val bodyString = response.body?.string()
-                    ?: return@withContext Result.failure(Exception("Empty body from Open-Meteo"))
-
-                val trimmed = bodyString.trim()
+                val body = response.body?.string() ?: return@withContext Result.failure(Exception("Empty body"))
+                val trimmed = body.trim()
                 val allPoints = mutableListOf<WeatherGridPoint>()
 
                 if (trimmed.startsWith("[")) {
                     val jsonArray = JSONArray(trimmed)
                     for (i in 0 until jsonArray.length()) {
                         val locObj = jsonArray.getJSONObject(i)
-                        val meta = stationList.getOrElse(i) { StationMetadata("Station $i", userLat, userLon) }
+                        val meta = targetStations.getOrElse(i) { targetStations[0] }
                         val lat = locObj.optDouble("latitude", meta.lat)
                         val lon = locObj.optDouble("longitude", meta.lon)
                         parseLocationHourly(locObj, meta.name, lat, lon, allPoints)
                     }
                 } else {
                     val json = JSONObject(trimmed)
-                    val meta = stationList[0]
-                    parseLocationHourly(json, meta.name, userLat, userLon, allPoints)
+                    val meta = targetStations[0]
+                    parseLocationHourly(json, meta.name, meta.lat, meta.lon, allPoints)
                 }
 
                 Result.success(allPoints)
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            // Fallback to single user location if batch failed
+            val userStation = stations.first()
+            fetchSingleLocation(userStation.name, userStation.lat, userStation.lon)
         }
     }
 
@@ -133,14 +184,15 @@ class OpenMeteoDirectFetcher(
                 baseTime + i * 3600_000L
             }
 
-            val speed = windSpeeds.optDouble(i, 12.0).toFloat()
+            val speed = windSpeeds.optDouble(i, 14.0).toFloat()
             val dir = windDirs.optDouble(i, 45.0).toFloat()
-            val gust = windGusts.optDouble(i, speed * 1.3).toFloat()
+            val gust = windGusts.optDouble(i, speed * 1.35).toFloat()
             val precip = precips.optDouble(i, 0.0).toFloat()
             val code = weatherCodes.optInt(i, 0)
             val temp = temps.optDouble(i, 27.0).toFloat()
 
-            val id = "grid_${cityName.replace(" ", "_")}_h$i"
+            val cleanName = cityName.replace(" ", "_")
+            val id = "grid_${cleanName}_h$i"
 
             outList.add(
                 WeatherGridPoint(

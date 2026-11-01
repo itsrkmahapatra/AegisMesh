@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -38,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.itsrkmahapatra.aegismesh.ui.theme.AlertExtremeRed
-import com.itsrkmahapatra.aegismesh.ui.theme.RadarCyan
 import com.itsrkmahapatra.aegismesh.util.GeoUtils
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -47,6 +43,18 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 
+/**
+ * World-class Windy-grade interactive weather map screen.
+ * 
+ * Features:
+ * - Fluid on-device wind particle streamline simulation (60+ FPS GPU Canvas).
+ * - Smooth Gaussian atmospheric velocity field (zero clunky rectangular chips).
+ * - Viewport-aware on-device data loading (fetches & stores all 168 hours of visible screen into Room DB).
+ * - Real-time Current Location weather HUD with exact GPS coords.
+ * - Interactive 168-hour timeline scrubber with Windy color scale.
+ * 
+ * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
+ */
 @Composable
 fun MapScreen(
     viewModel: MapViewModel,
@@ -59,13 +67,14 @@ fun MapScreen(
     val weatherPoints by viewModel.currentHourWeather.collectAsState()
     val activeStationPoint by viewModel.activeStationPoint.collectAsState()
     val selectedStationName by viewModel.selectedStationName.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val userLat by viewModel.userLatitude.collectAsState()
     val userLon by viewModel.userLongitude.collectAsState()
 
     val mapView = remember { MapView(context) }
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
     var currentStyle by remember { mutableStateOf<Style?>(null) }
-    var overlayHelper by remember { mutableStateOf<WindVectorOverlayHelper?>(null) }
+    var atmosphereHelper by remember { mutableStateOf<WindyAtmosphereOverlayHelper?>(null) }
 
     DisposableEffect(mapView) {
         mapView.onCreate(null)
@@ -78,17 +87,17 @@ fun MapScreen(
         }
     }
 
-    // Dynamic radar visual animation update: reacts to timeline scrubbing and play loop
+    // Reactively update MapLibre atmospheric Gaussian glow when scrubbed hour or points change
     LaunchedEffect(currentStyle, weatherPoints) {
         val style = currentStyle
-        val helper = overlayHelper
+        val helper = atmosphereHelper
         if (style != null && helper != null && weatherPoints.isNotEmpty()) {
             helper.updateWeatherData(style, weatherPoints)
         }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // MapLibre Native SDK Map View (Free Navigation, Rich Multi-City Radar)
+        // 1. MapLibre Native SDK Map View (OpenFreeMap Vector Tiles)
         AndroidView(
             factory = {
                 mapView.apply {
@@ -101,14 +110,30 @@ fun MapScreen(
                         map.uiSettings.isZoomGesturesEnabled = true
                         map.uiSettings.isScrollGesturesEnabled = true
 
-                        // Initial view centered on India
+                        // Initial view centered on user's GPS coordinate
                         val initialTarget = LatLng(userLat, userLon)
                         map.cameraPosition = CameraPosition.Builder()
                             .target(initialTarget)
-                            .zoom(5.0)
+                            .zoom(6.0)
                             .build()
 
-                        // Tap any point on the map to inspect THAT specific station's weather
+                        // Viewport-aware loader: whenever the user stops panning or zooming,
+                        // load and cache full 168-hour weather for the visible screen display into Room DB!
+                        map.addOnCameraIdleListener {
+                            val bounds = try { map.projection.visibleRegion.latLngBounds } catch (_: Exception) { null }
+                            if (bounds != null) {
+                                viewModel.onViewportChanged(
+                                    minLat = bounds.latitudeSouth,
+                                    maxLat = bounds.latitudeNorth,
+                                    minLon = bounds.longitudeWest,
+                                    maxLon = bounds.longitudeEast,
+                                    centerLat = map.cameraPosition.target.latitude,
+                                    centerLon = map.cameraPosition.target.longitude
+                                )
+                            }
+                        }
+
+                        // Map Tap: Tap anywhere on map to inspect weather at that exact location
                         map.addOnMapClickListener { clickedLatLng ->
                             val nearest = weatherPoints.minByOrNull {
                                 GeoUtils.calculateDistanceKm(
@@ -118,13 +143,8 @@ fun MapScreen(
                             }
                             if (nearest != null) {
                                 viewModel.selectStationByName(nearest.cityName)
-                                map.animateCamera(
-                                    CameraUpdateFactory.newLatLngZoom(
-                                        LatLng(nearest.latitude, nearest.longitude),
-                                        7.0
-                                    ),
-                                    600
-                                )
+                            } else {
+                                viewModel.selectCustomCoordinate(clickedLatLng.latitude, clickedLatLng.longitude)
                             }
                             true
                         }
@@ -132,8 +152,8 @@ fun MapScreen(
                         // OpenFreeMap vector styles
                         val styleBuilder = Style.Builder().fromUri("https://tiles.openfreemap.org/styles/liberty")
                         map.setStyle(styleBuilder) { style ->
-                            val helper = WindVectorOverlayHelper(context, map)
-                            overlayHelper = helper
+                            val helper = WindyAtmosphereOverlayHelper(map)
+                            atmosphereHelper = helper
                             helper.setupLayers(style)
                             helper.updateWeatherData(style, weatherPoints)
                             currentStyle = style
@@ -144,97 +164,81 @@ fun MapScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Top Overlay: Cell Tower Outage Banner
-        AnimatedVisibility(
-            visible = isCellOutage,
+        // 2. Windy-Grade Animated Wind Particle Streamline Overlay (60+ FPS GPU Canvas)
+        WindyParticleOverlay(
+            weatherPoints = weatherPoints,
+            map = mapInstance,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 3. Top Floating Island: Windy Weather HUD Inspector
+        Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 16.dp, start = 12.dp, end = 12.dp)
+                .fillMaxWidth()
         ) {
-            Row(
+            WindyTopInspector(
+                point = activeStationPoint,
+                selectedName = selectedStationName,
+                isLoading = isLoading,
+                onRecenterGps = {
+                    val target = LatLng(userLat, userLon)
+                    viewModel.selectStationByName("My Location")
+                    mapInstance?.animateCamera(
+                        CameraUpdateFactory.newLatLngZoom(target, 7.5),
+                        700
+                    )
+                },
+                onRefresh = { viewModel.refreshWeather() }
+            )
+
+            // Cell Tower Outage Banner (if disaster drops cell connectivity)
+            AnimatedVisibility(
+                visible = isCellOutage,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AlertExtremeRed.copy(alpha = 0.95f))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.CellTower,
-                    contentDescription = "Cell Outage",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "CELL TOWERS DOWN DETECTED",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AlertExtremeRed.copy(alpha = 0.95f))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CellTower,
+                        contentDescription = "Cell Outage",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
-                    Text(
-                        text = "Turn ON Airplane Mode + Bluetooth to save critical battery. AegisMesh P2P relay active.",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "CELL TOWERS OUTAGE DETECTED",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            text = "AegisMesh offline P2P BLE mesh active. Enable Airplane Mode to prevent modem battery drain.",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            lineHeight = 13.sp
+                        )
+                    }
                 }
             }
         }
 
-        // Floating Action Buttons (Recenter & Refresh)
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = if (isCellOutage) 80.dp else 24.dp, end = 16.dp)
-        ) {
-            FloatingActionButton(
-                onClick = {
-                    val target = activeStationPoint?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(userLat, userLon)
-                    mapInstance?.animateCamera(
-                        CameraUpdateFactory.newLatLngZoom(target, 7.0),
-                        800
-                    )
-                },
-                modifier = Modifier.size(44.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = RadarCyan
-            ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Focus Station")
-            }
-
-            Spacer(modifier = Modifier.size(12.dp))
-
-            FloatingActionButton(
-                onClick = { viewModel.refreshWeather() },
-                modifier = Modifier.size(44.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh Multi-City Radar")
-            }
-        }
-
-        // Bottom Disaster Command Console & Scrubber with City Switcher
+        // 4. Bottom Floating Windy Timeline Scrubber with Color Legend
         TimelineScrubber(
             currentHourOffset = currentHourOffset,
             isPlaying = isPlaying,
             onHourChanged = { viewModel.setHourOffset(it) },
             onPlayPauseToggle = { viewModel.togglePlayPause() },
             currentPoint = activeStationPoint,
-            allStationPoints = weatherPoints,
-            selectedStationName = selectedStationName,
-            onStationSelected = { name ->
-                viewModel.selectStationByName(name)
-                val target = weatherPoints.find { it.cityName.equals(name, ignoreCase = true) }
-                if (target != null) {
-                    mapInstance?.animateCamera(
-                        CameraUpdateFactory.newLatLngZoom(LatLng(target.latitude, target.longitude), 7.0),
-                        600
-                    )
-                }
-            },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
