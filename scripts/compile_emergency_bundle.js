@@ -3,6 +3,10 @@
  * Fetches public domain NDMA Sachet CAP RSS and Open-Meteo Weather data,
  * signs, compresses into GZIP (~55 KB), and outputs for GitHub Pages CDN.
  * 
+ * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
+ * PROPRIETARY & CONFIDENTIAL - FOR AUTHORIZED USE ONLY.
+ * NO COPYING, MODIFICATION, OR COMMERCIAL RESALE PERMITTED.
+ * 
  * Developer: Raj Kishor Mahapatra
  */
 

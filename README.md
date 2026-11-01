@@ -2,12 +2,22 @@
 
 [![Android CI Build](https://github.com/itsrkmahapatra/AegisMesh/actions/workflows/android_ci.yml/badge.svg)](https://github.com/itsrkmahapatra/AegisMesh/actions)
 [![Emergency Bundle CDN Cron](https://github.com/itsrkmahapatra/AegisMesh/actions/workflows/cron_emergency_bundle.yml/badge.svg)](https://github.com/itsrkmahapatra/AegisMesh/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Proprietary | All Rights Reserved](https://img.shields.io/badge/License-Proprietary%20%7C%20All%20Rights%20Reserved-red.svg)](LICENSE)
 [![Architecture: Clean Compose](https://img.shields.io/badge/Architecture-Clean%20Compose-06B6D4.svg)](https://developer.android.com/jetpack/compose)
 
 > **Architected & Developed by Raj Kishor Mahapatra**  
 > **Package Name**: `com.itsrkmahapatra.aegismesh`  
 > **Mission**: An industry-dominating, 2-page offline-first hybrid emergency radar app engineered to rank **#1 globally for emergency resilience, disaster tracking, and cyclone safety**.
+
+> [!IMPORTANT]
+> ### 🔒 PROPRIETARY INTELLECTUAL PROPERTY & END-USER LICENSE
+> **Copyright © 2026 Raj Kishor Mahapatra. All Rights Reserved.**  
+> AegisMesh is provided strictly for personal and community emergency resilience **USE ONLY**.  
+> - **NO COPYING**: You may not copy, clone, mirror, or duplicate the source code, architecture, or assets.  
+> - **NO MODIFICATION**: You may not modify, alter, fork, adapt, or create derivative works.  
+> - **NO COMMERCIAL USE OR SALE**: You may not sell, resell, lease, sublicense, commercialize, or monetize this software in any form.  
+> - **NO REVERSE ENGINEERING**: Decompilation, disassembly, or extraction of the underlying mesh algorithms is strictly prohibited.  
+> See the [LICENSE](LICENSE) file for complete legally binding terms.
 
 ---
 
@@ -146,6 +156,12 @@ AegisMesh/
 ## 📜 Regulatory & Civic Compliance
 - **No User-to-User Chat**: AegisMesh is strictly a broadcast recipient and relay reader app. It does not provide end-user chat or arbitrary text messaging, ensuring 100% compliance with Indian Telecom Regulations, NDMA disaster broadcasting norms, and Google Play communications policies.
 - **Data Attribution**: All emergency alerts originate from official public feeds issued by the **National Disaster Management Authority (NDMA)**, **India Meteorological Department (IMD)**, **Central Water Commission (CWC)**, and **INCOIS**.
+
+---
+
+## 🔒 License & Intellectual Property Terms
+**Copyright © 2026 Raj Kishor Mahapatra. All Rights Reserved.**  
+This software is proprietary. Permission is granted solely to install and execute the application for personal safety and disaster response. Copying, altering, modifying, reverse engineering, selling, renting, or redistributing this repository or derivative works is strictly prohibited. For complete terms, see [LICENSE](LICENSE).
 
 ---
 

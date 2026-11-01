@@ -1,5 +1,10 @@
 # AegisMesh: Global #1 App Store Optimization (ASO) & Growth Masterplan
 
+> **PROPRIETARY & CONFIDENTIAL — ALL RIGHTS RESERVED**  
+> Copyright © 2026 Raj Kishor Mahapatra.  
+> Sole Developer & Rights Holder: Raj Kishor Mahapatra (`com.itsrkmahapatra.aegismesh`).  
+> *Notice: For end-user use only. No copying, modification, or commercial exploitation permitted.*
+
 **Application Name**: AegisMesh: Offline Cyclone & Disaster Alert Radar  
 **Package Name**: `com.itsrkmahapatra.aegismesh`  
 **Developer**: Raj Kishor Mahapatra  

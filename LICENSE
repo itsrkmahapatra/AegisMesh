@@ -1,22 +1,66 @@
-MIT License
+PROPRIETARY END-USER LICENSE AGREEMENT (EULA)
+ALL RIGHTS RESERVED
 
-Copyright (c) 2026 Raj Kishor Mahapatra
+Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
+Project: AegisMesh (com.itsrkmahapatra.aegismesh)
+Developer & Sole Rights Holder: Raj Kishor Mahapatra
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+IMPORTANT: PLEASE READ THIS PROPRIETARY LICENSE AGREEMENT CAREFULLY.
+BY DOWNLOADING, INSTALLING, COPYING, ACCESSING, OR USING THIS SOFTWARE,
+YOU AGREE TO BE BOUND BY THE STRICT TERMS AND CONDITIONS OF THIS AGREEMENT.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. GRANT OF RESTRICTED LICENSE (USE ONLY):
+Subject to the terms and restrictions of this Agreement, Raj Kishor Mahapatra
+grants you a personal, revocable, non-exclusive, non-transferable, non-sublicensable
+limited license to install, execute, and use the official compiled binaries of
+the AegisMesh application SOLELY for your individual, personal, non-commercial
+emergency disaster safety and weather tracking purposes.
 
+2. STRICT PROHIBITIONS — NO COPYING, NO MODIFICATION, NO SALE:
+You are expressly and strictly PROHIBITED from doing any of the following,
+directly or indirectly, in whole or in part:
+  a. NO COPYING: You may NOT copy, reproduce, clone, scrape, mirror, or duplicate
+     the source code, application architecture, vector layouts, assets, designs,
+     database schemas, or algorithms in any medium or format.
+  b. NO MODIFICATION: You may NOT modify, alter, adapt, translate, enhance,
+     decompile, disassemble, reverse engineer, or create any derivative works
+     based on AegisMesh or any component thereof.
+  c. NO COMMERCIAL USE OR SALE: You may NOT sell, resell, sublicense, rent, lease,
+     loan, distribute, commercialize, charge fees for, bundle, or otherwise monetize
+     AegisMesh, its source code, compiled binaries, mesh relay payloads, or services.
+  d. NO REDISTRIBUTION OR FORKING: You may NOT redistribute, publish, host, or
+     disseminate unauthorized builds, forks, modified versions, or standalone APKs
+     on any third-party app stores, repositories, websites, or file sharing platforms.
+  e. NO REVERSE ENGINEERING: You may NOT decompile, decrypt, unpack, extract, or
+     attempt to derive the source code or underlying ideas, algorithms, file formats,
+     or peer-to-peer mesh synchronization protocols.
+
+3. OWNERSHIP AND INTELLECTUAL PROPERTY:
+AegisMesh, including without limitation all source code, software architecture,
+user interfaces, graphical assets, branding, documentation, algorithms, and
+associated intellectual property rights, is and remains the sole and exclusive
+proprietary property of Raj Kishor Mahapatra. No title, ownership, or intellectual
+property rights are transferred to you under this Agreement. All rights not
+expressly granted herein are strictly reserved by Raj Kishor Mahapatra.
+
+4. GOVERNMENT & PUBLIC DOMAIN DATA NOTICE:
+Emergency alerts, weather data, and cyclonic warnings rendered in the application
+are derived from public domain feeds issued by the National Disaster Management
+Authority (NDMA), India Meteorological Department (IMD), Central Water Commission
+(CWC), and INCOIS. The proprietary terms of this Agreement apply to the software,
+codebase, peer-to-peer mesh synchronization engine, user interface, and compilation
+authored by Raj Kishor Mahapatra.
+
+5. TERMINATION:
+This license is effective until terminated. Your rights under this Agreement will
+terminate automatically without notice from the author if you fail to comply with
+any term or condition of this Agreement. Upon termination, you must cease all use
+of the application and destroy all copies of the software in your possession.
+
+6. DISCLAIMER OF WARRANTY:
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
+THE AUTHOR OR COPYRIGHT HOLDER (RAJ KISHOR MAHAPATRA) BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
