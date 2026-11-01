@@ -213,7 +213,8 @@ fun MapScreen(
                         700
                     )
                 },
-                onRefresh = { viewModel.refreshWeather() }
+                onRefresh = { viewModel.refreshWeather() },
+                onToggleDrillMode = { viewModel.toggleDrillMode() }
             )
 
             // Multi-Layer Selector Pill Bar (Wind, Rain Radar, Cyclone Cone, Lightning, Temp)

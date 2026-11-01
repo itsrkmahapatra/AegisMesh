@@ -58,28 +58,12 @@ class MapViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // Interactive 2026 Cyclone Preparedness Drill Mode
+    private val _isDrillModeActive = MutableStateFlow(false)
+    val isDrillModeActive: StateFlow<Boolean> = _isDrillModeActive.asStateFlow()
+
     private var playbackJob: Job? = null
     private var viewportFetchJob: Job? = null
-
-    // Active Cyclone Tracking Model (Zoom Earth grade)
-    val activeCyclone: StateFlow<ActiveCyclone?> = MutableStateFlow(
-        weatherRepository.getActiveCyclone()
-    ).asStateFlow()
-
-    // Real-time distance from user to cyclone eye in km
-    val distanceToCycloneKm: StateFlow<Float?> = combine(
-        userLatitude,
-        userLongitude,
-        activeCyclone
-    ) { lat, lon, cyclone ->
-        if (cyclone != null) {
-            GeoUtils.calculateDistanceKm(lat, lon, cyclone.currentLat, cyclone.currentLon).toFloat()
-        } else null
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = null
-    )
 
     // Weather grid points for currently scrubbed hour (0 to 167)
     val currentHourWeather: StateFlow<List<WeatherGridPoint>> = combine(
@@ -94,6 +78,37 @@ class MapViewModel(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = WeatherRepository.generateBaselinePoints(0)
+    )
+
+    // Dynamic Cyclone Model: Detects live low-pressure eye or activates 2026 preparedness drill
+    val activeCyclone: StateFlow<ActiveCyclone?> = combine(
+        currentHourWeather,
+        _isDrillModeActive
+    ) { points, drillActive ->
+        weatherRepository.getActiveCyclone(
+            nowEpoch = System.currentTimeMillis(),
+            points = points,
+            allowSimulationDrill = drillActive
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = null
+    )
+
+    // Real-time distance from user to cyclone eye in km
+    val distanceToCycloneKm: StateFlow<Float?> = combine(
+        userLatitude,
+        userLongitude,
+        activeCyclone
+    ) { lat, lon, cyclone ->
+        if (cyclone != null) {
+            GeoUtils.calculateDistanceKm(lat, lon, cyclone.currentLat, cyclone.currentLon).toFloat()
+        } else null
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
     )
 
     // Weather point for actively selected station / location
@@ -126,6 +141,14 @@ class MapViewModel(
 
     fun selectLayer(layer: WeatherMapLayer) {
         _selectedLayer.value = layer
+        if (layer == WeatherMapLayer.CYCLONE_TRACK && activeCyclone.value == null) {
+            // Auto-enable 2026 drill simulation so the user can inspect Zoom Earth cone & eye vortex
+            _isDrillModeActive.value = true
+        }
+    }
+
+    fun toggleDrillMode() {
+        _isDrillModeActive.value = !_isDrillModeActive.value
     }
 
     fun toggleMapStyle() {
@@ -174,13 +197,22 @@ class MapViewModel(
             val latSpan = maxLat - minLat
             val lonSpan = maxLon - minLon
 
-            val sampleStations = listOf(
-                OpenMeteoDirectFetcher.StationMetadata("Screen Center", centerLat, centerLon),
-                OpenMeteoDirectFetcher.StationMetadata("North West", minLat + latSpan * 0.75, minLon + lonSpan * 0.25),
-                OpenMeteoDirectFetcher.StationMetadata("North East", minLat + latSpan * 0.75, minLon + lonSpan * 0.75),
-                OpenMeteoDirectFetcher.StationMetadata("South West", minLat + latSpan * 0.25, minLon + lonSpan * 0.25),
-                OpenMeteoDirectFetcher.StationMetadata("South East", minLat + latSpan * 0.25, minLon + lonSpan * 0.75)
-            )
+            val sampleStations = mutableListOf<OpenMeteoDirectFetcher.StationMetadata>()
+
+            // 1. Check which nationwide recognized stations are inside the viewport
+            val inBounds = OpenMeteoDirectFetcher.REGIONAL_BASELINE_STATIONS.filter {
+                it.lat in minLat..maxLat && it.lon in minLon..maxLon
+            }
+            sampleStations.addAll(inBounds.take(10))
+
+            // 2. If few stations visible, sample grid coordinates across the visible screen
+            if (sampleStations.size < 4) {
+                sampleStations.add(OpenMeteoDirectFetcher.StationMetadata("Screen Center", centerLat, centerLon))
+                sampleStations.add(OpenMeteoDirectFetcher.StationMetadata("Sector NW", minLat + latSpan * 0.75, minLon + lonSpan * 0.25))
+                sampleStations.add(OpenMeteoDirectFetcher.StationMetadata("Sector NE", minLat + latSpan * 0.75, minLon + lonSpan * 0.75))
+                sampleStations.add(OpenMeteoDirectFetcher.StationMetadata("Sector SW", minLat + latSpan * 0.25, minLon + lonSpan * 0.25))
+                sampleStations.add(OpenMeteoDirectFetcher.StationMetadata("Sector SE", minLat + latSpan * 0.25, minLon + lonSpan * 0.75))
+            }
 
             weatherRepository.refreshWeatherForViewport(
                 userLat = userLatitude.value,

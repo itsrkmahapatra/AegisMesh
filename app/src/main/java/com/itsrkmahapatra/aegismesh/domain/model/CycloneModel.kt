@@ -21,7 +21,7 @@ data class CycloneTrackNode(
 
 data class ActiveCyclone(
     val id: String,
-    val name: String,                   // e.g. "Severe Cyclonic Storm DANA"
+    val name: String,                   // e.g. "Severe Cyclonic Storm 'SHAKTI'"
     val basin: String,                  // "Bay of Bengal (North Indian Ocean)"
     val intensityCategory: String,      // "Very Severe Cyclonic Storm (VSCS)"
     val currentLat: Double,
@@ -34,5 +34,6 @@ data class ActiveCyclone(
     val conePolygonCoords: List<Pair<Double, Double>>, // Polygon bounding coordinates for Cone of Uncertainty
     val projectedLandfallLocation: String, // e.g. "Dhamra Port / Puri Coast (Odisha)"
     val projectedLandfallEpoch: Long,
-    val estimatedLandfallWindKph: Float
+    val estimatedLandfallWindKph: Float,
+    val isDrillSimulation: Boolean = false
 )

@@ -10,7 +10,7 @@ import com.itsrkmahapatra.aegismesh.util.AlertLanguageHelper
  */
 data class EmergencyAlert(
     val id: String,                         // Unique CAP identifier or guid
-    val title: String,                      // Event headline (e.g., Cyclone Dana Red Alert)
+    val title: String,                      // Event headline (e.g., Cyclonic Storm Red Alert)
     val description: String,                // Full official warning text
     val instruction: String,                // Official NDMA Do's and Don'ts
     val category: String,                   // Met, Geo, Safety, etc.

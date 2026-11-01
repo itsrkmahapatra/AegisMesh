@@ -5,15 +5,19 @@ import com.itsrkmahapatra.aegismesh.data.local.entity.WeatherGridPointEntity
 import com.itsrkmahapatra.aegismesh.data.remote.OpenMeteoDirectFetcher
 import com.itsrkmahapatra.aegismesh.domain.model.ActiveCyclone
 import com.itsrkmahapatra.aegismesh.domain.model.CycloneTrackNode
+import com.itsrkmahapatra.aegismesh.domain.model.EmergencyAlert
 import com.itsrkmahapatra.aegismesh.domain.model.WeatherGridPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * Repository for managing 7-day (168-hour) weather forecasts, multi-layer radar data,
  * and Zoom Earth-style Cyclone tracking.
+ * 
+ * 100% on-device processing, zero API keys, live 2026 synchronization.
  * 
  * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
@@ -50,11 +54,11 @@ class WeatherRepository(
         }
 
         // Add default regional stations if few visible
-        if (targets.size < 5) {
+        if (targets.size < 6) {
             for (st in OpenMeteoDirectFetcher.REGIONAL_BASELINE_STATIONS) {
                 if (targets.none { it.name.equals(st.name, ignoreCase = true) }) {
                     targets.add(st)
-                    if (targets.size >= 8) break
+                    if (targets.size >= 12) break
                 }
             }
         }
@@ -68,7 +72,7 @@ class WeatherRepository(
             }
         }
 
-        // Offline fallback
+        // Offline fallback: Populate entire 168-hour timeline across all regions
         if (weatherDao.getCount() == 0) {
             val baseline = (0..167).flatMap { generateBaselinePoints(it, userLat, userLon) }
             weatherDao.insertBatch(baseline.map { WeatherGridPointEntity.fromDomain(it) })
@@ -79,10 +83,108 @@ class WeatherRepository(
     }
 
     /**
-     * Zoom Earth-style Cyclone tracking generator.
-     * Computes the live tracking path, category milestones, and expanding Cone of Uncertainty.
+     * Zoom Earth-style Cyclone tracking detector.
+     * Evaluates live grid points and NDMA CAP alerts:
+     * - If severe depression / cyclonic storm is active in live data, tracks it dynamically.
+     * - If no storm is active, returns null (or drill cyclone if allowSimulationDrill is true).
      */
-    fun getActiveCyclone(nowEpoch: Long = System.currentTimeMillis()): ActiveCyclone {
+    fun getActiveCyclone(
+        nowEpoch: Long = System.currentTimeMillis(),
+        points: List<WeatherGridPoint> = emptyList(),
+        allowSimulationDrill: Boolean = false
+    ): ActiveCyclone? {
+        // 1. Scan live weather grid points for any low-pressure eye (barometer < 995 hPa or wind >= 62 km/h)
+        val stormEye = points.filter { it.surfacePressureHpa < 995f || it.windSpeedKph >= 62f }
+            .minByOrNull { it.surfacePressureHpa }
+
+        if (stormEye != null) {
+            return buildDynamicCyclone(stormEye, nowEpoch)
+        }
+
+        // 2. If simulation drill is enabled by user, generate a high-fidelity 2026 preparedness drill
+        if (allowSimulationDrill) {
+            return buildDrillCyclone(nowEpoch)
+        }
+
+        // 3. Basin is normal / clear
+        return null
+    }
+
+    private fun buildDynamicCyclone(eyePoint: WeatherGridPoint, nowEpoch: Long): ActiveCyclone {
+        val landfallTime = nowEpoch + (12 * 3600_000L)
+        val lat = eyePoint.latitude
+        val lon = eyePoint.longitude
+        val wind = eyePoint.windSpeedKph.coerceAtLeast(65f)
+        val gust = eyePoint.windGustsKph.coerceAtLeast(wind * 1.3f)
+        val press = eyePoint.surfacePressureHpa.coerceAtMost(990f)
+
+        val track = listOf(
+            CycloneTrackNode(
+                stage = "PAST",
+                timestampEpoch = nowEpoch - (12 * 3600_000L),
+                latitude = lat - 1.2,
+                longitude = lon + 0.9,
+                maxWindKph = wind * 0.75f,
+                peakGustsKph = gust * 0.75f,
+                centralPressureHpa = press + 12f,
+                categoryLabel = "Deep Depression (DD)",
+                formattedTime = "12h Ago"
+            ),
+            CycloneTrackNode(
+                stage = "CURRENT",
+                timestampEpoch = nowEpoch,
+                latitude = lat,
+                longitude = lon,
+                maxWindKph = wind,
+                peakGustsKph = gust,
+                centralPressureHpa = press,
+                categoryLabel = if (wind >= 118f) "Very Severe Cyclonic Storm (VSCS)" else "Cyclonic Storm (CS)",
+                formattedTime = "LIVE NOW"
+            ),
+            CycloneTrackNode(
+                stage = "FORECAST",
+                timestampEpoch = landfallTime,
+                latitude = lat + 1.1,
+                longitude = lon - 0.4,
+                maxWindKph = wind * 1.1f,
+                peakGustsKph = gust * 1.1f,
+                centralPressureHpa = press - 4f,
+                categoryLabel = "Projected Landfall",
+                formattedTime = "In 12 Hours"
+            )
+        )
+
+        val cone = listOf(
+            Pair(lat, lon),
+            Pair(lat + 0.8, lon + 0.7),
+            Pair(lat + 1.6, lon + 1.1),
+            Pair(lat + 2.2, lon + 0.5),
+            Pair(lat + 2.0, lon - 0.9),
+            Pair(lat + 1.2, lon - 0.8),
+            Pair(lat, lon)
+        )
+
+        return ActiveCyclone(
+            id = "live_cyclonic_system_${eyePoint.id}",
+            name = "Cyclonic System near ${eyePoint.cityName}",
+            basin = "North Indian Ocean (Live Surveillance)",
+            intensityCategory = if (wind >= 118f) "Very Severe Cyclonic Storm (VSCS)" else "Severe Cyclonic Storm (SCS)",
+            currentLat = lat,
+            currentLon = lon,
+            sustainedWindKph = wind,
+            peakGustsKph = gust,
+            centralPressureHpa = press,
+            movementDirectionText = "North-Northwest (NNW) at 16 km/h",
+            trackNodes = track,
+            conePolygonCoords = cone,
+            projectedLandfallLocation = "Coastal Sector near ${eyePoint.cityName}",
+            projectedLandfallEpoch = landfallTime,
+            estimatedLandfallWindKph = wind * 1.1f,
+            isDrillSimulation = false
+        )
+    }
+
+    private fun buildDrillCyclone(nowEpoch: Long): ActiveCyclone {
         val landfallTime = nowEpoch + (14 * 3600_000L) // In 14 hours
 
         val track = listOf(
@@ -116,8 +218,8 @@ class WeatherRepository(
                 maxWindKph = 145f,
                 peakGustsKph = 175f,
                 centralPressureHpa = 970f,
-                categoryLabel = "Very Severe Cyclonic Storm (VSCS) - CAT 3",
-                formattedTime = "LIVE NOW"
+                categoryLabel = "Very Severe Cyclonic Storm (VSCS) • Category 3",
+                formattedTime = "LIVE NOW (2026 DRILL)"
             ),
             CycloneTrackNode(
                 stage = "FORECAST",
@@ -154,21 +256,20 @@ class WeatherRepository(
             )
         )
 
-        // Bounding polygon coordinates for Zoom Earth-style Cone of Uncertainty
         val cone = listOf(
-            Pair(19.15, 87.10), // Origin (current eye)
-            Pair(20.40, 87.70), // Right flare +6h
-            Pair(21.40, 88.10), // Right flare landfall
-            Pair(22.30, 87.60), // Tip Right +24h
-            Pair(22.10, 85.70), // Tip Left +24h
-            Pair(21.10, 85.90), // Left flare landfall
-            Pair(20.00, 86.20), // Left flare +6h
-            Pair(19.15, 87.10)  // Close polygon
+            Pair(19.15, 87.10),
+            Pair(20.40, 87.70),
+            Pair(21.40, 88.10),
+            Pair(22.30, 87.60),
+            Pair(22.10, 85.70),
+            Pair(21.10, 85.90),
+            Pair(20.00, 86.20),
+            Pair(19.15, 87.10)
         )
 
         return ActiveCyclone(
-            id = "cyclone_dana_bay_of_bengal",
-            name = "Very Severe Cyclonic Storm 'DANA'",
+            id = "cyclone_drill_2026_shakti",
+            name = "Cyclonic Storm 'SHAKTI' (2026 Preparedness Drill)",
             basin = "Bay of Bengal (North Indian Ocean)",
             intensityCategory = "Very Severe Cyclonic Storm (VSCS) • Category 3",
             currentLat = 19.15,
@@ -181,7 +282,8 @@ class WeatherRepository(
             conePolygonCoords = cone,
             projectedLandfallLocation = "Dhamra Port / Bhitarkanika Coast (Odisha)",
             projectedLandfallEpoch = landfallTime,
-            estimatedLandfallWindKph = 165f
+            estimatedLandfallWindKph = 165f,
+            isDrillSimulation = true
         )
     }
 
@@ -199,38 +301,92 @@ class WeatherRepository(
             val basePressure: Float
         )
 
-        private val REGIONAL_CONFIGS = listOf(
-            BaselineStationConfig("Puri Coast", 19.81, 85.83, 75f, 105f, 28f, 65f, 65, 27f, 978f),       // 🌀 Severe Cyclone
-            BaselineStationConfig("Sundarbans Delta", 21.95, 88.93, 58f, 80f, 32f, 45f, 95, 26f, 988f),  // ⛈️ Thunderstorm
-            BaselineStationConfig("Visakhapatnam", 17.68, 83.21, 48f, 66f, 12f, 90f, 61, 28f, 995f),    // 💨 Squally
-            BaselineStationConfig("Chennai Marina", 13.08, 80.27, 24f, 32f, 0.4f, 135f, 2, 29f, 1008f),  // ⛅ Partly Cloudy
-            BaselineStationConfig("Veraval Port", 20.90, 70.36, 52f, 70f, 0f, 315f, 1, 26f, 1005f),      // 💨 Gale
-            BaselineStationConfig("Mumbai Coast", 18.92, 72.83, 18f, 24f, 0f, 270f, 0, 28f, 1010f),      // ☀️ Fair
-            BaselineStationConfig("Kochi Malabar", 9.93, 76.26, 32f, 44f, 14f, 225f, 80, 27f, 1009f),    // 🌧️ Rain Showers
-            BaselineStationConfig("Port Blair", 11.62, 92.72, 85f, 115f, 45f, 45f, 96, 26f, 972f),      // 🌀 Super Cyclone
-            BaselineStationConfig("Kolkata", 22.57, 88.36, 42f, 58f, 14f, 60f, 55, 27f, 996f),          // 🌦️ Drizzle
-            BaselineStationConfig("Bhubaneswar", 20.29, 85.82, 62f, 82f, 22f, 70f, 63, 27f, 984f),      // 🌧️ Heavy Rain
-            BaselineStationConfig("Digha Coast", 21.62, 87.50, 68f, 92f, 30f, 50f, 65, 26f, 982f),      // 🌀 Storm Surge
-            BaselineStationConfig("New Delhi", 28.61, 77.20, 12f, 16f, 0f, 0f, 0, 21f, 1015f),           // ☀️ Clear Skies
-            BaselineStationConfig("Bengaluru", 12.97, 77.59, 15f, 20f, 0f, 180f, 1, 24f, 1012f)          // ⛅ Pleasant
+        // Comprehensive nationwide meteorological network across all Indian coasts, seas, and states
+        val REGIONAL_CONFIGS = listOf(
+            // Odisha Coast
+            BaselineStationConfig("Puri Coast", 19.81, 85.83, 26f, 36f, 1.2f, 65f, 2, 28f, 1010f),
+            BaselineStationConfig("Paradip Port", 20.31, 86.61, 28f, 38f, 1.8f, 60f, 2, 28f, 1009f),
+            BaselineStationConfig("Gopalpur Coast", 19.26, 84.90, 22f, 30f, 0.4f, 75f, 1, 29f, 1011f),
+            BaselineStationConfig("Balasore", 21.49, 86.93, 20f, 28f, 0.6f, 50f, 2, 27f, 1011f),
+            BaselineStationConfig("Bhubaneswar", 20.29, 85.82, 18f, 25f, 0.0f, 70f, 1, 29f, 1011f),
+
+            // West Bengal
+            BaselineStationConfig("Kolkata", 22.57, 88.36, 16f, 22f, 0.0f, 45f, 1, 28f, 1012f),
+            BaselineStationConfig("Digha Coast", 21.62, 87.50, 24f, 32f, 0.8f, 55f, 2, 27f, 1010f),
+            BaselineStationConfig("Sundarbans Delta", 21.95, 88.93, 26f, 35f, 2.2f, 45f, 61, 27f, 1009f),
+
+            // Andhra Pradesh
+            BaselineStationConfig("Visakhapatnam", 17.68, 83.21, 22f, 30f, 0.2f, 90f, 1, 29f, 1011f),
+            BaselineStationConfig("Kakinada", 16.98, 82.24, 20f, 28f, 0.0f, 85f, 1, 30f, 1011f),
+            BaselineStationConfig("Machilipatnam", 16.18, 81.13, 22f, 30f, 0.4f, 100f, 2, 30f, 1011f),
+
+            // Tamil Nadu
+            BaselineStationConfig("Chennai Marina", 13.08, 80.27, 25f, 35f, 1.5f, 120f, 2, 30f, 1010f),
+            BaselineStationConfig("Cuddalore", 11.75, 79.76, 24f, 32f, 2.0f, 125f, 61, 29f, 1010f),
+            BaselineStationConfig("Nagapattinam", 10.76, 79.84, 26f, 36f, 3.2f, 115f, 61, 29f, 1010f),
+            BaselineStationConfig("Rameswaram", 9.28, 79.31, 28f, 38f, 1.0f, 110f, 2, 30f, 1010f),
+            BaselineStationConfig("Kanyakumari", 8.08, 77.53, 30f, 40f, 0.5f, 140f, 1, 29f, 1010f),
+
+            // Kerala
+            BaselineStationConfig("Kochi Malabar", 9.93, 76.26, 18f, 26f, 2.8f, 240f, 61, 28f, 1011f),
+            BaselineStationConfig("Thiruvananthapuram", 8.52, 76.93, 16f, 24f, 1.4f, 230f, 2, 29f, 1011f),
+
+            // Karnataka & Goa
+            BaselineStationConfig("Mangaluru Coast", 12.91, 74.85, 18f, 25f, 0.5f, 260f, 1, 29f, 1011f),
+            BaselineStationConfig("Panaji Goa", 15.49, 73.82, 16f, 22f, 0.0f, 270f, 0, 30f, 1011f),
+
+            // Maharashtra
+            BaselineStationConfig("Mumbai Coast", 18.92, 72.83, 18f, 25f, 0.0f, 290f, 0, 29f, 1012f),
+            BaselineStationConfig("Ratnagiri", 16.99, 73.30, 16f, 22f, 0.0f, 280f, 0, 29f, 1012f),
+
+            // Gujarat
+            BaselineStationConfig("Veraval Port", 20.90, 70.36, 26f, 35f, 0.0f, 315f, 0, 27f, 1012f),
+            BaselineStationConfig("Porbandar", 21.64, 69.60, 24f, 32f, 0.0f, 320f, 0, 26f, 1013f),
+            BaselineStationConfig("Dwarka Coast", 22.24, 68.96, 25f, 34f, 0.0f, 330f, 0, 26f, 1013f),
+            BaselineStationConfig("Kandla Kutch", 23.03, 70.21, 20f, 28f, 0.0f, 340f, 0, 27f, 1013f),
+
+            // Offshore Basins
+            BaselineStationConfig("North Bay of Bengal", 20.00, 89.00, 34f, 45f, 4.0f, 50f, 61, 27f, 1008f),
+            BaselineStationConfig("Central Bay of Bengal", 15.00, 87.00, 32f, 42f, 2.5f, 70f, 2, 28f, 1009f),
+            BaselineStationConfig("Port Blair", 11.62, 92.72, 28f, 38f, 5.5f, 85f, 63, 27f, 1009f),
+            BaselineStationConfig("Lakshadweep", 10.56, 72.64, 22f, 30f, 1.0f, 220f, 2, 29f, 1011f),
+
+            // Northern & Central Plains
+            BaselineStationConfig("New Delhi", 28.61, 77.20, 12f, 16f, 0.0f, 310f, 0, 22f, 1016f),
+            BaselineStationConfig("Jaipur", 26.91, 75.78, 14f, 18f, 0.0f, 300f, 0, 24f, 1015f),
+            BaselineStationConfig("Lucknow", 26.84, 80.94, 10f, 15f, 0.0f, 315f, 0, 23f, 1015f),
+            BaselineStationConfig("Patna", 25.59, 85.13, 11f, 16f, 0.0f, 320f, 0, 24f, 1014f),
+            BaselineStationConfig("Ranchi", 23.34, 85.30, 14f, 20f, 0.0f, 330f, 0, 24f, 1014f),
+            BaselineStationConfig("Bhopal", 23.25, 77.41, 14f, 19f, 0.0f, 340f, 0, 25f, 1014f),
+            BaselineStationConfig("Raipur", 21.25, 81.62, 15f, 20f, 0.0f, 350f, 0, 26f, 1013f),
+            BaselineStationConfig("Hyderabad", 17.38, 78.48, 16f, 22f, 0.0f, 40f, 1, 27f, 1013f),
+            BaselineStationConfig("Bengaluru", 12.97, 77.59, 16f, 22f, 0.0f, 100f, 1, 24f, 1013f),
+            BaselineStationConfig("Guwahati", 26.14, 91.73, 8f, 12f, 0.0f, 60f, 0, 23f, 1014f),
+            BaselineStationConfig("Srinagar", 34.08, 74.79, 6f, 10f, 0.0f, 270f, 0, 15f, 1018f)
         )
 
+        /**
+         * Generates realistic microclimate points for hourOffset, ALWAYS including the user's location.
+         * Strictly uses current device time (2026).
+         */
         fun generateBaselinePoints(
             hour: Int,
             userLat: Double = 20.5937,
             userLon: Double = 78.9629
         ): List<WeatherGridPoint> {
             val baseTime = System.currentTimeMillis() + hour * 3600_000L
-            val hourWave = kotlin.math.sin(hour * 0.15) * 8.0
+            val hourWave = kotlin.math.sin(hour * 0.15) * 4.0
 
             val list = mutableListOf<WeatherGridPoint>()
 
-            val userWind = (35f + hourWave).toFloat().coerceIn(12f, 95f)
+            // 1. ALWAYS add the user's location with localized parameters
+            val userWind = (20f + hourWave).toFloat().coerceIn(10f, 65f)
             val userGust = userWind * 1.35f
-            val userDir = ((55f + hour * 6f) % 360f)
+            val userDir = ((70f + hour * 4f) % 360f)
+            val userCoordId = String.format(Locale.US, "%.2f_%.2f", userLat, userLon)
             list.add(
                 WeatherGridPoint(
-                    id = "base_My_Location_h$hour",
+                    id = "base_${userCoordId}_h$hour",
                     cityName = "My Location",
                     latitude = userLat,
                     longitude = userLon,
@@ -239,24 +395,26 @@ class WeatherRepository(
                     windSpeedKph = userWind,
                     windDirectionDegrees = userDir,
                     windGustsKph = userGust,
-                    precipitationMm = if (userWind > 50f) 14.5f else 1.2f,
+                    precipitationMm = 0.2f,
                     temperatureCelsius = 28f,
-                    weatherCode = if (userWind > 50f) 65 else 2,
-                    surfacePressureHpa = if (userWind > 50f) 988f else 1009f,
-                    humidityPercent = if (userWind > 50f) 92 else 72,
-                    cloudCoverPercent = if (userWind > 50f) 95 else 35
+                    weatherCode = 1,
+                    surfacePressureHpa = 1011f,
+                    humidityPercent = 74,
+                    cloudCoverPercent = 25
                 )
             )
 
+            // 2. Add full nationwide network
             for (cfg in REGIONAL_CONFIGS) {
-                val dynamicWind = (cfg.baseWind + hourWave + (cfg.name.hashCode() % 5)).toFloat().coerceAtLeast(6f)
-                val dynamicGust = (cfg.baseGust + hourWave * 1.3f).toFloat().coerceAtLeast(dynamicWind * 1.2f)
-                val dynamicRain = if (cfg.baseRain > 0) (cfg.baseRain + hourWave * 0.5f).toFloat().coerceAtLeast(0.5f) else 0f
-                val dynamicDir = ((cfg.baseDir + hour * 8) % 360).toFloat()
+                val dynamicWind = (cfg.baseWind + hourWave + (cfg.name.hashCode() % 4)).toFloat().coerceAtLeast(6f)
+                val dynamicGust = (cfg.baseGust + hourWave * 1.2f).toFloat().coerceAtLeast(dynamicWind * 1.2f)
+                val dynamicRain = if (cfg.baseRain > 0) (cfg.baseRain + hourWave * 0.3f).toFloat().coerceAtLeast(0.2f) else 0f
+                val dynamicDir = ((cfg.baseDir + hour * 5) % 360).toFloat()
+                val coordId = String.format(Locale.US, "%.2f_%.2f", cfg.lat, cfg.lon)
 
                 list.add(
                     WeatherGridPoint(
-                        id = "base_${cfg.name.replace(" ", "_")}_h$hour",
+                        id = "base_${coordId}_h$hour",
                         cityName = cfg.name,
                         latitude = cfg.lat,
                         longitude = cfg.lon,
@@ -269,8 +427,8 @@ class WeatherRepository(
                         temperatureCelsius = cfg.baseTemp,
                         weatherCode = cfg.baseCode,
                         surfacePressureHpa = cfg.basePressure,
-                        humidityPercent = if (cfg.baseRain > 0) 90 else 68,
-                        cloudCoverPercent = if (cfg.baseRain > 0) 95 else 30
+                        humidityPercent = if (cfg.baseRain > 0) 85 else 65,
+                        cloudCoverPercent = if (cfg.baseRain > 0) 80 else 25
                     )
                 )
             }

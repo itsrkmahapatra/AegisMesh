@@ -35,24 +35,47 @@ class OpenMeteoDirectFetcher(
 
         val REGIONAL_BASELINE_STATIONS = listOf(
             StationMetadata("Puri Coast", 19.81, 85.83),
+            StationMetadata("Paradip Port", 20.31, 86.61),
+            StationMetadata("Gopalpur Coast", 19.26, 84.90),
+            StationMetadata("Balasore", 21.49, 86.93),
+            StationMetadata("Bhubaneswar", 20.29, 85.82),
+            StationMetadata("Kolkata", 22.57, 88.36),
+            StationMetadata("Digha Coast", 21.62, 87.50),
             StationMetadata("Sundarbans Delta", 21.95, 88.93),
             StationMetadata("Visakhapatnam", 17.68, 83.21),
-            StationMetadata("Chennai Marina", 13.08, 80.27),
-            StationMetadata("Veraval Port", 20.90, 70.36),
-            StationMetadata("Mumbai Coast", 18.92, 72.83),
-            StationMetadata("Kochi Malabar", 9.93, 76.26),
-            StationMetadata("Port Blair", 11.62, 92.72),
-            StationMetadata("Kolkata", 22.57, 88.36),
-            StationMetadata("Bhubaneswar", 20.29, 85.82),
-            StationMetadata("Digha Coast", 21.62, 87.50),
             StationMetadata("Kakinada", 16.98, 82.24),
+            StationMetadata("Machilipatnam", 16.18, 81.13),
+            StationMetadata("Chennai Marina", 13.08, 80.27),
             StationMetadata("Cuddalore", 11.75, 79.76),
-            StationMetadata("Kandla Kutch", 23.03, 70.21),
+            StationMetadata("Nagapattinam", 10.76, 79.84),
+            StationMetadata("Rameswaram", 9.28, 79.31),
+            StationMetadata("Kanyakumari", 8.08, 77.53),
+            StationMetadata("Kochi Malabar", 9.93, 76.26),
+            StationMetadata("Thiruvananthapuram", 8.52, 76.93),
+            StationMetadata("Mangaluru Coast", 12.91, 74.85),
             StationMetadata("Panaji Goa", 15.49, 73.82),
+            StationMetadata("Mumbai Coast", 18.92, 72.83),
+            StationMetadata("Ratnagiri", 16.99, 73.30),
+            StationMetadata("Veraval Port", 20.90, 70.36),
+            StationMetadata("Porbandar", 21.64, 69.60),
+            StationMetadata("Dwarka Coast", 22.24, 68.96),
+            StationMetadata("Kandla Kutch", 23.03, 70.21),
+            StationMetadata("Surat", 21.17, 72.83),
+            StationMetadata("North Bay of Bengal", 20.00, 89.00),
+            StationMetadata("Central Bay of Bengal", 15.00, 87.00),
+            StationMetadata("Port Blair", 11.62, 92.72),
+            StationMetadata("Lakshadweep", 10.56, 72.64),
             StationMetadata("New Delhi", 28.61, 77.20),
-            StationMetadata("Bengaluru", 12.97, 77.59),
+            StationMetadata("Jaipur", 26.91, 75.78),
+            StationMetadata("Lucknow", 26.84, 80.94),
+            StationMetadata("Patna", 25.59, 85.13),
+            StationMetadata("Ranchi", 23.34, 85.30),
+            StationMetadata("Bhopal", 23.25, 77.41),
+            StationMetadata("Raipur", 21.25, 81.62),
             StationMetadata("Hyderabad", 17.38, 78.48),
-            StationMetadata("Guwahati", 26.14, 91.73)
+            StationMetadata("Bengaluru", 12.97, 77.59),
+            StationMetadata("Guwahati", 26.14, 91.73),
+            StationMetadata("Srinagar", 34.08, 74.79)
         )
     }
 
@@ -190,8 +213,7 @@ class OpenMeteoDirectFetcher(
             val humidity = humidities.optInt(i, 75)
             val cloud = clouds.optInt(i, 40)
 
-            val cleanName = cityName.replace(" ", "_")
-            val id = "grid_${cleanName}_h$i"
+            val id = "grid_${String.format(Locale.US, "%.2f_%.2f", lat, lon)}_h$i"
 
             outList.add(
                 WeatherGridPoint(

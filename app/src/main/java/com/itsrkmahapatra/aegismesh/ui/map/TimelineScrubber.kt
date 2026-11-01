@@ -52,7 +52,7 @@ fun TimelineScrubber(
     currentPoint: WeatherGridPoint?,
     modifier: Modifier = Modifier
 ) {
-    val formatter = SimpleDateFormat("EEE, dd MMM • hh:mm a", Locale.getDefault())
+    val formatter = SimpleDateFormat("EEE, dd MMM yyyy • hh:mm a", Locale.getDefault())
     val currentEpoch = currentPoint?.timestampEpoch ?: (System.currentTimeMillis() + currentHourOffset * 3600_000L)
     val formattedTime = formatter.format(Date(currentEpoch))
 

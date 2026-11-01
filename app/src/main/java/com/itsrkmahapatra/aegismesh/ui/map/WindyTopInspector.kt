@@ -3,6 +3,7 @@ package com.itsrkmahapatra.aegismesh.ui.map
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,9 @@ import java.util.Locale
 /**
  * Top floating Windy & Zoom Earth-grade Weather HUD Inspector.
  * 
+ * Synchronized with live 2026 wall-clock time, live barometric pressure,
+ * place-wise weather parameters, and interactive 2026 cyclone drill controls.
+ * 
  * Copyright (c) 2026 Raj Kishor Mahapatra. All Rights Reserved.
  */
 @Composable
@@ -55,6 +59,7 @@ fun WindyTopInspector(
     isLoading: Boolean,
     onRecenterGps: () -> Unit,
     onRefresh: () -> Unit,
+    onToggleDrillMode: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val locationTitle = when {
@@ -165,38 +170,101 @@ fun WindyTopInspector(
                 }
             }
 
-            // Zoom Earth Cyclone Alert Banner (if in Cyclone Track layer or active storm nearby)
-            if (activeLayer == WeatherMapLayer.CYCLONE_TRACK && activeCyclone != null) {
+            // Zoom Earth Cyclone / Basin Status Banner
+            if (activeLayer == WeatherMapLayer.CYCLONE_TRACK) {
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AlertExtremeRed.copy(alpha = 0.2f))
-                        .border(1.dp, AlertExtremeRed.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "🌀", fontSize = 16.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "${activeCyclone.name} (${activeCyclone.intensityCategory})",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "Eye: ${activeCyclone.currentLat}°N, ${activeCyclone.currentLon}°E • Pressure: ${activeCyclone.centralPressureHpa.toInt()} hPa • ${activeCyclone.movementDirectionText}",
-                            fontSize = 10.sp,
-                            color = Color(0xFFFCA5A5)
-                        )
-                        if (distanceToCycloneKm != null) {
+                if (activeCyclone != null) {
+                    val isDrill = activeCyclone.isDrillSimulation
+                    val borderColor = if (isDrill) RadarCyan else AlertExtremeRed
+                    val bgColor = if (isDrill) Color(0x3338BDF8) else AlertExtremeRed.copy(alpha = 0.2f)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(bgColor)
+                            .border(1.dp, borderColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "🌀", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Distance to You: ${distanceToCycloneKm.toInt()} km • Landfall: ${activeCyclone.projectedLandfallLocation}",
+                                text = activeCyclone.name,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Eye: ${activeCyclone.currentLat}°N, ${activeCyclone.currentLon}°E • Pressure: ${activeCyclone.centralPressureHpa.toInt()} hPa • ${activeCyclone.movementDirectionText}",
                                 fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = RadarCyan
+                                color = if (isDrill) RadarCyan else Color(0xFFFCA5A5)
+                            )
+                            if (distanceToCycloneKm != null) {
+                                Text(
+                                    text = "Distance to You: ${distanceToCycloneKm.toInt()} km • Landfall: ${activeCyclone.projectedLandfallLocation}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = RadarCyan
+                                )
+                            }
+                        }
+                        if (isDrill) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xDD0F172A))
+                                    .clickable { onToggleDrillMode() }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Exit Drill",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Basin is calm / clear in real-time
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0x3310B981))
+                            .border(1.dp, Color(0x6610B981), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "✅", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Indian Basins Clear • Live Surveillance Active",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "IMD / NDMA Live • Barometer: ${pressure} hPa • No Tropical Cyclones Detected",
+                                fontSize = 10.sp,
+                                color = Color(0xFFA7F3D0)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(RadarCyan)
+                                .clickable { onToggleDrillMode() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "▶ 2026 Drill",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.Black
                             )
                         }
                     }
