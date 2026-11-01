@@ -187,3 +187,4 @@ class NearbyConnectionsManager(
         _connectedPeers.value = emptySet()
     }
 }
+

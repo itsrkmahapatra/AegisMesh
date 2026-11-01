@@ -35,3 +35,4 @@ class AegisApplication : Application() {
         cellOutageMonitor = CellOutageMonitor(this)
     }
 }
+

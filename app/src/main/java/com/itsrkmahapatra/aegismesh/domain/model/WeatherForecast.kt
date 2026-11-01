@@ -16,3 +16,4 @@ data class WeatherGridPoint(
     val precipitationMm: Float,         // Hourly precipitation in mm
     val temperatureCelsius: Float       // Temperature at 2m in Celsius
 )
+

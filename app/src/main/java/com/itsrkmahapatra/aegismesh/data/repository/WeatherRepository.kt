@@ -37,3 +37,4 @@ class WeatherRepository(
         weatherDao.getCount() > 0
     }
 }
+

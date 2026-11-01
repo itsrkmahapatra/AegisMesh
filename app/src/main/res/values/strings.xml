@@ -34,3 +34,4 @@
     <string name="cell_outage_recommendation">Cellular service is disconnected. Turn on Airplane Mode + Bluetooth to save critical battery while keeping AegisMesh active.</string>
     <string name="action_airplane_settings">Battery Saver Mode</string>
 </resources>
+

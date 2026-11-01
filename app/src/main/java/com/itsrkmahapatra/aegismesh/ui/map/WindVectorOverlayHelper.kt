@@ -129,3 +129,4 @@ class WindVectorOverlayHelper(private val map: MapLibreMap) {
         return root.toString()
     }
 }
+

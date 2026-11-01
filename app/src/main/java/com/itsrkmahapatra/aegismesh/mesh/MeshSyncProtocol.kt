@@ -40,3 +40,4 @@ object MeshSyncProtocol {
         val latestTimestampEpoch: Long
     )
 }
+

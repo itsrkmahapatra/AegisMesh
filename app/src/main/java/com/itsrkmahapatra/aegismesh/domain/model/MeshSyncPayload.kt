@@ -13,3 +13,4 @@ data class MeshSyncPayload(
     val weatherSample: List<WeatherGridPoint> = emptyList(),
     val timeToLiveHops: Int = 5 // Max 5 hops to prevent endless mesh loops
 )
+

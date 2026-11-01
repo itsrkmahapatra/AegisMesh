@@ -101,3 +101,4 @@ class MapViewModel(
         return GeoUtils.calculateBoundingBox(userLatitude.value, userLongitude.value, 50.0)
     }
 }
+

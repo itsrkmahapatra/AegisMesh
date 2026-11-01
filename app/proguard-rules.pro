@@ -21,3 +21,4 @@
 # Keep data models
 -keepclassmembers class com.itsrkmahapatra.aegismesh.domain.model.** { *; }
 -keepclassmembers class com.itsrkmahapatra.aegismesh.data.local.entity.** { *; }
+

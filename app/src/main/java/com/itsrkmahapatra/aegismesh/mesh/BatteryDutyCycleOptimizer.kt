@@ -69,3 +69,4 @@ class BatteryDutyCycleOptimizer(
         } catch (_: Exception) {}
     }
 }
+

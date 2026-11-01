@@ -25,3 +25,4 @@ interface WeatherDao {
     @Query("SELECT COUNT(*) FROM weather_grid_points")
     suspend fun getCount(): Int
 }
+

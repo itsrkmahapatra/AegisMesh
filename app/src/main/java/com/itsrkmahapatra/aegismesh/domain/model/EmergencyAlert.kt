@@ -24,3 +24,4 @@ data class EmergencyAlert(
     val syncTimestampEpoch: Long,           // Last sync timestamp for 'latest wins' resolution
     val hopCount: Int = 0                   // Mesh relay hop count (TTL decrementing)
 )
+

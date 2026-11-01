@@ -83,3 +83,4 @@ Detects cellular tower blackouts and prompts power-saving mode to prevent baseba
 3. **Screenshot 3 (P2P Mesh Visualization)**: Diagram of phones relaying alerts peer-to-peer over BLE without internet or cellular reception.
 4. **Screenshot 4 (7-Day Scrubber)**: 168-hour timeline scrubber showing hourly wind, gust, and precipitation forecasts.
 5. **App Icon**: Striking cyan Aegis Shield with neon-green cyclone spiral and emergency red alert eye—stands out against standard weather icons in search results.
+

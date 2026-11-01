@@ -74,3 +74,4 @@ class GitHubPagesCdnFetcher(
         const val GITHUB_PAGES_CDN_BUNDLE_URL = "https://itsrkmahapatra.github.io/AegisMesh/bundle/latest.json.gz"
     }
 }
+

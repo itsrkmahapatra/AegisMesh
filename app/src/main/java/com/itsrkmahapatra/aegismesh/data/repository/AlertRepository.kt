@@ -184,3 +184,4 @@ class AlertRepository(
         return alertDao.getLatestSyncTimestamp() ?: 0L
     }
 }
+

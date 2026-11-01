@@ -27,3 +27,4 @@ enum class AlertSeverity(val level: String, val weight: Int, val primaryColorHex
         }
     }
 }
+

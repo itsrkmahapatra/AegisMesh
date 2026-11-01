@@ -143,3 +143,4 @@ class MainActivity : ComponentActivity(), LocationListener {
         app.cellOutageMonitor.stopMonitoring()
     }
 }
+
