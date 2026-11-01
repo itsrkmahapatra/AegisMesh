@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Emergency Palette: High contrast, dark-mode optimized for OLED battery saving -->
+    <color name="emergency_bg">#0A0E17</color>
+    <color name="emergency_surface">#131B2A</color>
+    <color name="emergency_surface_variant">#1E293B</color>
+    
+    <color name="alert_extreme">#EF4444</color>
+    <color name="alert_extreme_container">#450A0A</color>
+    <color name="alert_severe">#F97316</color>
+    <color name="alert_severe_container">#431407</color>
+    <color name="alert_moderate">#FBBF24</color>
+    <color name="alert_moderate_container">#451A03</color>
+    
+    <color name="radar_teal">#06B6D4</color>
+    <color name="radar_cyan">#22D3EE</color>
+    <color name="mesh_accent">#10B981</color>
+    <color name="text_primary">#F8FAFC</color>
+    <color name="text_secondary">#94A3B8</color>
+</resources>

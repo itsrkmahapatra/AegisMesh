@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">AegisMesh</string>
+    <string name="app_tagline">Offline Disaster Alert &amp; Cyclone Mesh Radar</string>
+    <string name="developer_name">Raj Kishor Mahapatra</string>
+    
+    <!-- Navigation Tabs (Strict 2-Page Model) -->
+    <string name="tab_map">Live Radar</string>
+    <string name="tab_alerts">Government Alerts</string>
+
+    <!-- Map & Weather Scrubber -->
+    <string name="map_legend_wind">Wind Speed</string>
+    <string name="map_legend_gust">Gust Direction</string>
+    <string name="map_legend_precip">Precipitation</string>
+    <string name="offline_base_loaded">Preloaded India Base Map Active</string>
+    <string name="scrubber_play">Play 7-Day Forecast</string>
+    <string name="scrubber_pause">Pause Forecast</string>
+    <string name="scrubber_hour_format">Forecast: %1$s (+%2$dh)</string>
+
+    <!-- Alerts Page -->
+    <string name="alerts_title">Official NDMA SACHET Warnings</string>
+    <string name="filter_radius_50km">Within 50 km GPS Radius</string>
+    <string name="filter_all_india">All India Severe Alerts</string>
+    <string name="severity_extreme">EXTREME DANGER</string>
+    <string name="severity_severe">SEVERE ADVISORY</string>
+    <string name="severity_moderate">MODERATE WATCH</string>
+    <string name="dos_and_donts">Official NDMA Do\'s and Don\'ts</string>
+
+    <!-- Mesh Sync & Battery -->
+    <string name="mesh_status_active">AegisMesh P2P Cluster: Searching &amp; Relaying</string>
+    <string name="mesh_status_idle">Mesh Standby (Duty Cycling)</string>
+    <string name="mesh_peer_connected">Connected to nearby emergency node</string>
+    <string name="mesh_sync_success">Offline alerts synchronized over peer mesh</string>
+    <string name="cell_outage_detected">CELLULAR TOWERS DOWN DETECTED</string>
+    <string name="cell_outage_recommendation">Cellular service is disconnected. Turn on Airplane Mode + Bluetooth to save critical battery while keeping AegisMesh active.</string>
+    <string name="action_airplane_settings">Battery Saver Mode</string>
+</resources>

@@ -1,0 +1,46 @@
+﻿{
+    "generatedAtEpoch":  1793533278202,
+    "alerts":  [
+                   {
+                       "sourceAuthority":  "IMD / NDMA Sachet",
+                       "category":  "Met",
+                       "severity":  "Severe",
+                       "centroidLat":  19.8135,
+                       "expiresEpoch":  1793706078202,
+                       "syncTimestampEpoch":  1793533278202,
+                       "id":  "alert_baseline_odisha_01",
+                       "areaDescription":  "Coastal Odisha (Puri, Jagatsinghpur, Kendrapara, Bhadrak, Baleswar) \u0026 West Bengal Coast",
+                       "urgency":  "Immediate",
+                       "effectiveEpoch":  1793533278202,
+                       "description":  "Squally wind speed reaching 45-55 kmph gusting to 65 kmph likely along and off Odisha and West Bengal coasts. Fishermen advised not to venture into deep sea.",
+                       "certainty":  "Likely",
+                       "centroidLon":  85.8312,
+                       "hopCount":  0,
+                       "instruction":  "Move small boats to safety. Keep emergency dry rations, battery torches, and powerbanks charged. Avoid low-lying coastal beaches.",
+                       "event":  "Cyclonic Storm / Squall",
+                       "title":  "Bay of Bengal Deep Depression \u0026 Cyclone Watch"
+                   },
+                   {
+                       "sourceAuthority":  "NDMA / CWC",
+                       "category":  "Met",
+                       "severity":  "Moderate",
+                       "centroidLat":  17.6868,
+                       "expiresEpoch":  1793619678202,
+                       "syncTimestampEpoch":  1793533278202,
+                       "id":  "alert_baseline_andhra_02",
+                       "areaDescription":  "Srikakulam, Vizianagaram, Visakhapatnam Coastal Belt",
+                       "urgency":  "Expected",
+                       "effectiveEpoch":  1793533278202,
+                       "description":  "Isolated heavy to very heavy rainfall accompanied by thunder and lightning expected over coastal districts.",
+                       "certainty":  "Likely",
+                       "centroidLon":  83.2185,
+                       "hopCount":  0,
+                       "instruction":  "Follow local DDMA alerts. Stay away from electric poles and waterlogged causeways.",
+                       "event":  "Heavy Rainfall",
+                       "title":  "Heavy Rainfall \u0026 Gale Advisory: North Andhra Coast"
+                   }
+               ],
+    "generatedAtIso":  "2026-11-01T11:41:18Z",
+    "version":  1,
+    "totalAlerts":  2
+}

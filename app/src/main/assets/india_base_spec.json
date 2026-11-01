@@ -1,0 +1,18 @@
+{
+  "name": "India Offline Disaster Basemap",
+  "version": "1.0.0",
+  "format": "pmtiles",
+  "default_center": [20.5937, 78.9629],
+  "default_zoom": 5.0,
+  "min_zoom": 3.0,
+  "max_zoom": 14.0,
+  "coastal_high_risk_zones": [
+    {"name": "Odisha Coast", "lat": 19.8135, "lon": 85.8312, "radius_km": 150},
+    {"name": "West Bengal Delta", "lat": 21.9497, "lon": 88.9325, "radius_km": 150},
+    {"name": "Andhra Coastal Belt", "lat": 16.5062, "lon": 80.6480, "radius_km": 150},
+    {"name": "Tamil Nadu Coromandel", "lat": 13.0827, "lon": 80.2707, "radius_km": 150},
+    {"name": "Gujarat Saurashtra", "lat": 21.5222, "lon": 70.4579, "radius_km": 150}
+  ],
+  "openfreemap_style_url": "https://tiles.openfreemap.org/styles/liberty",
+  "tile_cache_path": "cache/offline_tiles/"
+}
