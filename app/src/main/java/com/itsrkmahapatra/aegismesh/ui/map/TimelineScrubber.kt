@@ -2,6 +2,8 @@ package com.itsrkmahapatra.aegismesh.ui.map
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +50,9 @@ fun TimelineScrubber(
     onHourChanged: (Int) -> Unit,
     onPlayPauseToggle: () -> Unit,
     currentPoint: WeatherGridPoint?,
+    allStationPoints: List<WeatherGridPoint>,
+    selectedStationName: String?,
+    onStationSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val formatter = SimpleDateFormat("EEE, dd MMM - HH:mm", Locale.getDefault())
@@ -56,81 +62,131 @@ fun TimelineScrubber(
     val windSpeed = currentPoint?.windSpeedKph ?: 0f
     val gusts = currentPoint?.windGustsKph ?: 0f
     val precip = currentPoint?.precipitationMm ?: 0f
+    val emoji = currentPoint?.conditionEmoji ?: "☀️"
+    val cityName = currentPoint?.cityName ?: "Regional Radar"
+    val condition = currentPoint?.conditionText ?: "Live Weather"
+    val arrow = currentPoint?.windArrow ?: "↑ N"
+    val signal = currentPoint?.signalBadge ?: "🟢 NORMAL"
+    val temp = currentPoint?.temperatureCelsius?.toInt() ?: 28
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(12.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+            .padding(10.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
         tonalElevation = 8.dp,
-        shadowElevation = 12.dp
+        shadowElevation = 14.dp
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            // Header: Day / Time and Cyclone Danger Indicator
+            // Horizontal Station Quick-Select Chips: allows user to see unique weather across every city!
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column {
-                    Text(
-                        text = formattedTime,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Forecast (+${currentHourOffset}h / 168h)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = RadarCyan
-                    )
-                }
+                for (station in allStationPoints) {
+                    val isSelected = station.cityName.equals(selectedStationName, ignoreCase = true)
+                    val chipColor = try {
+                        Color(android.graphics.Color.parseColor(station.colorHex))
+                    } catch (_: Exception) {
+                        RadarCyan
+                    }
 
-                // Severe Wind Warning Pill if gusts > 60 km/h (Cyclone scale)
-                AnimatedVisibility(visible = gusts >= 60f) {
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (gusts >= 90f) AlertExtremeRed else AlertSevereOrange)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) chipColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .clickable { onStationSelected(station.cityName) }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = "Gale Warning",
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
+                        Text(
+                            text = station.conditionEmoji,
+                            fontSize = 12.sp
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (gusts >= 90f) "CYCLONE GUST" else "GALE WARNING",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black
+                            text = "${station.cityName} (${station.windSpeedKph.toInt()}km/h)",
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Main Active Station Header with Emoji, Signs & Signals
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = emoji,
+                            fontSize = 20.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = cityName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        text = "$condition • $formattedTime (+${currentHourOffset}h)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = RadarCyan
+                    )
+                }
+
+                // Official Danger Signal Badge (Signals 1-10 / Warnings)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            when {
+                                windSpeed >= 65f -> AlertExtremeRed
+                                windSpeed >= 45f -> AlertSevereOrange
+                                else -> MaterialTheme.colorScheme.primaryContainer
+                            }
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = signal,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Realtime Metrics Row
+            // Realtime Multi-Param Metric Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricItem(label = "Wind", value = "${windSpeed.toInt()} km/h", highlight = windSpeed > 50f)
-                MetricItem(label = "Gusts", value = "${gusts.toInt()} km/h", highlight = gusts > 65f)
-                MetricItem(label = "Rain", value = "${String.format(Locale.US, "%.1f", precip)} mm/h", highlight = precip > 15f)
-                MetricItem(label = "Direction", value = "${currentPoint?.windDirectionDegrees?.toInt() ?: 0}°", highlight = false)
+                MetricItem(label = "Wind & Vector", value = "${windSpeed.toInt()} km/h $arrow", highlight = windSpeed > 45f)
+                MetricItem(label = "Peak Gusts", value = "${gusts.toInt()} km/h", highlight = gusts > 60f)
+                MetricItem(label = "Rain Rate", value = "${String.format(Locale.US, "%.1f", precip)} mm", highlight = precip > 5f)
+                MetricItem(label = "Temp", value = "$temp°C", highlight = false)
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Slider & Play/Pause Controls
+            // Timeline Animation Loop & Slider
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -144,12 +200,12 @@ fun TimelineScrubber(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        contentDescription = if (isPlaying) "Pause" else "Play Radar Animation",
                         tint = RadarCyan
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Slider(
                     value = currentHourOffset.toFloat(),
@@ -178,10 +234,9 @@ private fun MetricItem(label: String, value: String, highlight: Boolean) {
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = if (highlight) AlertSevereOrange else MaterialTheme.colorScheme.onSurface
         )
     }
 }
-

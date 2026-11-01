@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsrkmahapatra.aegismesh.data.repository.WeatherRepository
 import com.itsrkmahapatra.aegismesh.domain.model.WeatherGridPoint
+import com.itsrkmahapatra.aegismesh.util.GeoUtils
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -25,6 +27,9 @@ class MapViewModel(
     private val _currentHourOffset = MutableStateFlow(0)
     val currentHourOffset: StateFlow<Int> = _currentHourOffset.asStateFlow()
 
+    private val _selectedStationName = MutableStateFlow<String?>("Puri Coast")
+    val selectedStationName: StateFlow<String?> = _selectedStationName.asStateFlow()
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
@@ -33,7 +38,7 @@ class MapViewModel(
 
     private var playbackJob: Job? = null
 
-    // Reactive flow of weather points for currently scrubbed hour across regional grid
+    // Reactive flow of all 20 distinct weather stations across India for currently scrubbed hour
     val currentHourWeather: StateFlow<List<WeatherGridPoint>> = _currentHourOffset
         .flatMapLatest { offset ->
             weatherRepository.getWeatherForHour(offset)
@@ -44,8 +49,34 @@ class MapViewModel(
             initialValue = WeatherRepository.generateBaselinePoints(0)
         )
 
+    // Specific weather point for the actively selected station (displayed in bottom scrubber & inspector)
+    val activeStationPoint: StateFlow<WeatherGridPoint?> = combine(
+        currentHourWeather,
+        _selectedStationName,
+        userLatitude,
+        userLongitude
+    ) { points, selectedName, lat, lon ->
+        if (points.isEmpty()) null
+        else if (selectedName != null) {
+            points.find { it.cityName.equals(selectedName, ignoreCase = true) }
+                ?: points.minByOrNull { GeoUtils.calculateDistanceKm(lat, lon, it.latitude, it.longitude) }
+                ?: points.first()
+        } else {
+            points.minByOrNull { GeoUtils.calculateDistanceKm(lat, lon, it.latitude, it.longitude) }
+                ?: points.first()
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = WeatherRepository.generateBaselinePoints(0).firstOrNull()
+    )
+
     init {
         refreshWeather()
+    }
+
+    fun selectStationByName(name: String) {
+        _selectedStationName.value = name
     }
 
     fun updateGpsLocation(lat: Double, lon: Double) {
@@ -82,7 +113,7 @@ class MapViewModel(
         playbackJob?.cancel()
         playbackJob = viewModelScope.launch {
             while (isActive && _isPlaying.value) {
-                delay(500L) // Advance 1 hour every 500ms for smooth fluid animation
+                delay(450L) // Fluid animation advancing 1 hour every 450ms
                 val next = (_currentHourOffset.value + 1) % 168
                 _currentHourOffset.value = next
             }

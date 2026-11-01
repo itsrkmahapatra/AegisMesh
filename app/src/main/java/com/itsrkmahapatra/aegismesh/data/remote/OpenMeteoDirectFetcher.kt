@@ -13,7 +13,7 @@ import java.util.TimeZone
 
 /**
  * Direct on-device Open-Meteo Weather Client.
- * Queries a high-resolution regional weather radar grid across Indian coastal and inland sectors.
+ * Queries a dense, high-resolution regional weather radar grid across 20 distinct Indian cities & coastal hubs.
  * 100% Keyless, zero billing, open-access.
  */
 class OpenMeteoDirectFetcher(
@@ -24,41 +24,46 @@ class OpenMeteoDirectFetcher(
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
+    data class StationMetadata(val name: String, val lat: Double, val lon: Double)
+
+    companion object {
+        val NATIONAL_STATIONS = listOf(
+            StationMetadata("Puri Coast", 19.81, 85.83),
+            StationMetadata("Sundarbans Delta", 21.95, 88.93),
+            StationMetadata("Visakhapatnam", 17.68, 83.21),
+            StationMetadata("Chennai Marina", 13.08, 80.27),
+            StationMetadata("Veraval Port", 20.90, 70.36),
+            StationMetadata("Mumbai Coast", 18.92, 72.83),
+            StationMetadata("Kochi Malabar", 9.93, 76.26),
+            StationMetadata("Port Blair", 11.62, 92.72),
+            StationMetadata("Kolkata", 22.57, 88.36),
+            StationMetadata("Bhubaneswar", 20.29, 85.82),
+            StationMetadata("Digha Coast", 21.62, 87.50),
+            StationMetadata("Kakinada", 16.98, 82.24),
+            StationMetadata("Cuddalore", 11.75, 79.76),
+            StationMetadata("Kandla Kutch", 23.03, 70.21),
+            StationMetadata("Panaji Goa", 15.49, 73.82),
+            StationMetadata("New Delhi", 28.61, 77.20),
+            StationMetadata("Bengaluru", 12.97, 77.59),
+            StationMetadata("Hyderabad", 17.38, 78.48),
+            StationMetadata("Guwahati", 26.14, 91.73)
+        )
+    }
+
     suspend fun fetchRegionalWeatherGrid(
         userLat: Double,
         userLon: Double
     ): Result<List<WeatherGridPoint>> = withContext(Dispatchers.IO) {
         try {
-            // Strategic disaster monitoring hubs across Bay of Bengal & Arabian Sea + User GPS
-            val lats = listOf(
-                userLat,
-                19.81, // Odisha Coast (Puri/Paradip)
-                21.95, // West Bengal Delta & Sundarbans
-                17.68, // Andhra Coastal Belt (Visakhapatnam)
-                13.08, // Tamil Nadu Coromandel (Chennai)
-                21.52, // Gujarat Saurashtra (Veraval/Porbandar)
-                18.92, // Maharashtra (Mumbai)
-                9.93,  // Kerala Coast (Kochi)
-                11.62  // Andaman & Nicobar (Cyclone genesis zone)
-            )
-            val lons = listOf(
-                userLon,
-                85.83,
-                88.93,
-                83.21,
-                80.27,
-                70.45,
-                72.83,
-                76.26,
-                92.72
-            )
+            val stationList = mutableListOf(StationMetadata("Your GPS Location", userLat, userLon))
+            stationList.addAll(NATIONAL_STATIONS)
 
-            val latStr = lats.joinToString(",") { String.format(Locale.US, "%.2f", it) }
-            val lonStr = lons.joinToString(",") { String.format(Locale.US, "%.2f", it) }
+            val latStr = stationList.joinToString(",") { String.format(Locale.US, "%.2f", it.lat) }
+            val lonStr = stationList.joinToString(",") { String.format(Locale.US, "%.2f", it.lon) }
 
             val url = "https://api.open-meteo.com/v1/forecast?" +
                     "latitude=$latStr&longitude=$lonStr&" +
-                    "hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,temperature_2m&" +
+                    "hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,weathercode,temperature_2m&" +
                     "forecast_days=7&timezone=UTC"
 
             val request = Request.Builder()
@@ -80,18 +85,18 @@ class OpenMeteoDirectFetcher(
                 val allPoints = mutableListOf<WeatherGridPoint>()
 
                 if (trimmed.startsWith("[")) {
-                    // Multi-location array returned by Open-Meteo
                     val jsonArray = JSONArray(trimmed)
-                    for (locIdx in 0 until jsonArray.length()) {
-                        val locObj = jsonArray.getJSONObject(locIdx)
-                        val lat = locObj.optDouble("latitude", lats.getOrElse(locIdx) { userLat })
-                        val lon = locObj.optDouble("longitude", lons.getOrElse(locIdx) { userLon })
-                        parseLocationHourly(locObj, lat, lon, allPoints)
+                    for (i in 0 until jsonArray.length()) {
+                        val locObj = jsonArray.getJSONObject(i)
+                        val meta = stationList.getOrElse(i) { StationMetadata("Station $i", userLat, userLon) }
+                        val lat = locObj.optDouble("latitude", meta.lat)
+                        val lon = locObj.optDouble("longitude", meta.lon)
+                        parseLocationHourly(locObj, meta.name, lat, lon, allPoints)
                     }
                 } else {
-                    // Single location object
                     val json = JSONObject(trimmed)
-                    parseLocationHourly(json, userLat, userLon, allPoints)
+                    val meta = stationList[0]
+                    parseLocationHourly(json, meta.name, userLat, userLon, allPoints)
                 }
 
                 Result.success(allPoints)
@@ -103,6 +108,7 @@ class OpenMeteoDirectFetcher(
 
     private fun parseLocationHourly(
         locObj: JSONObject,
+        cityName: String,
         lat: Double,
         lon: Double,
         outList: MutableList<WeatherGridPoint>
@@ -113,6 +119,7 @@ class OpenMeteoDirectFetcher(
         val windDirs = hourly.optJSONArray("wind_direction_10m") ?: JSONArray()
         val windGusts = hourly.optJSONArray("wind_gusts_10m") ?: JSONArray()
         val precips = hourly.optJSONArray("precipitation") ?: JSONArray()
+        val weatherCodes = hourly.optJSONArray("weathercode") ?: JSONArray()
         val temps = hourly.optJSONArray("temperature_2m") ?: JSONArray()
 
         val count = times.length()
@@ -126,17 +133,19 @@ class OpenMeteoDirectFetcher(
                 baseTime + i * 3600_000L
             }
 
-            val speed = windSpeeds.optDouble(i, 15.0).toFloat()
+            val speed = windSpeeds.optDouble(i, 12.0).toFloat()
             val dir = windDirs.optDouble(i, 45.0).toFloat()
             val gust = windGusts.optDouble(i, speed * 1.3).toFloat()
             val precip = precips.optDouble(i, 0.0).toFloat()
-            val temp = temps.optDouble(i, 28.0).toFloat()
+            val code = weatherCodes.optInt(i, 0)
+            val temp = temps.optDouble(i, 27.0).toFloat()
 
-            val id = "grid_${String.format(Locale.US, "%.2f_%.2f", lat, lon)}_h$i"
+            val id = "grid_${cityName.replace(" ", "_")}_h$i"
 
             outList.add(
                 WeatherGridPoint(
                     id = id,
+                    cityName = cityName,
                     latitude = lat,
                     longitude = lon,
                     hourOffset = i,
@@ -145,7 +154,8 @@ class OpenMeteoDirectFetcher(
                     windDirectionDegrees = dir,
                     windGustsKph = gust,
                     precipitationMm = precip,
-                    temperatureCelsius = temp
+                    temperatureCelsius = temp,
+                    weatherCode = code
                 )
             )
         }

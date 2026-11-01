@@ -9,12 +9,14 @@ import com.itsrkmahapatra.aegismesh.domain.model.WeatherGridPoint
     tableName = "weather_grid_points",
     indices = [
         Index(value = ["hourOffset"]),
-        Index(value = ["latitude", "longitude"])
+        Index(value = ["latitude", "longitude"]),
+        Index(value = ["cityName"])
     ]
 )
 data class WeatherGridPointEntity(
     @PrimaryKey
     val id: String, // e.g. "lat_lon_hour"
+    val cityName: String,
     val latitude: Double,
     val longitude: Double,
     val hourOffset: Int,
@@ -23,10 +25,12 @@ data class WeatherGridPointEntity(
     val windDirectionDegrees: Float,
     val windGustsKph: Float,
     val precipitationMm: Float,
-    val temperatureCelsius: Float
+    val temperatureCelsius: Float,
+    val weatherCode: Int
 ) {
     fun toDomain(): WeatherGridPoint = WeatherGridPoint(
         id = id,
+        cityName = cityName,
         latitude = latitude,
         longitude = longitude,
         hourOffset = hourOffset,
@@ -35,12 +39,14 @@ data class WeatherGridPointEntity(
         windDirectionDegrees = windDirectionDegrees,
         windGustsKph = windGustsKph,
         precipitationMm = precipitationMm,
-        temperatureCelsius = temperatureCelsius
+        temperatureCelsius = temperatureCelsius,
+        weatherCode = weatherCode
     )
 
     companion object {
         fun fromDomain(domain: WeatherGridPoint): WeatherGridPointEntity = WeatherGridPointEntity(
             id = domain.id,
+            cityName = domain.cityName,
             latitude = domain.latitude,
             longitude = domain.longitude,
             hourOffset = domain.hourOffset,
@@ -49,8 +55,8 @@ data class WeatherGridPointEntity(
             windDirectionDegrees = domain.windDirectionDegrees,
             windGustsKph = domain.windGustsKph,
             precipitationMm = domain.precipitationMm,
-            temperatureCelsius = domain.temperatureCelsius
+            temperatureCelsius = domain.temperatureCelsius,
+            weatherCode = domain.weatherCode
         )
     }
 }
-

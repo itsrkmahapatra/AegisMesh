@@ -57,6 +57,8 @@ fun MapScreen(
     val currentHourOffset by viewModel.currentHourOffset.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
     val weatherPoints by viewModel.currentHourWeather.collectAsState()
+    val activeStationPoint by viewModel.activeStationPoint.collectAsState()
+    val selectedStationName by viewModel.selectedStationName.collectAsState()
     val userLat by viewModel.userLatitude.collectAsState()
     val userLon by viewModel.userLongitude.collectAsState()
 
@@ -76,7 +78,7 @@ fun MapScreen(
         }
     }
 
-    // Reactively update weather overlay whenever weatherPoints or style changes (e.g. animation loop or scrubbing)
+    // Dynamic radar visual animation update: reacts to timeline scrubbing and play loop
     LaunchedEffect(currentStyle, weatherPoints) {
         val style = currentStyle
         val helper = overlayHelper
@@ -86,7 +88,7 @@ fun MapScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // MapLibre Native SDK Map View (Free Pan & Zoom - No 50km Camera Lock)
+        // MapLibre Native SDK Map View (Free Navigation, Rich Multi-City Radar)
         AndroidView(
             factory = {
                 mapView.apply {
@@ -99,17 +101,38 @@ fun MapScreen(
                         map.uiSettings.isZoomGesturesEnabled = true
                         map.uiSettings.isScrollGesturesEnabled = true
 
-                        // Initial nationwide camera target centered on India
+                        // Initial view centered on India
                         val initialTarget = LatLng(userLat, userLon)
                         map.cameraPosition = CameraPosition.Builder()
                             .target(initialTarget)
-                            .zoom(5.5) // Shows major coastal sectors and regional weather grid
+                            .zoom(5.0)
                             .build()
 
-                        // Keyless OpenFreeMap Vector Style
+                        // Tap any point on the map to inspect THAT specific station's weather
+                        map.addOnMapClickListener { clickedLatLng ->
+                            val nearest = weatherPoints.minByOrNull {
+                                GeoUtils.calculateDistanceKm(
+                                    clickedLatLng.latitude, clickedLatLng.longitude,
+                                    it.latitude, it.longitude
+                                )
+                            }
+                            if (nearest != null) {
+                                viewModel.selectStationByName(nearest.cityName)
+                                map.animateCamera(
+                                    CameraUpdateFactory.newLatLngZoom(
+                                        LatLng(nearest.latitude, nearest.longitude),
+                                        7.0
+                                    ),
+                                    600
+                                )
+                            }
+                            true
+                        }
+
+                        // OpenFreeMap vector styles
                         val styleBuilder = Style.Builder().fromUri("https://tiles.openfreemap.org/styles/liberty")
                         map.setStyle(styleBuilder) { style ->
-                            val helper = WindVectorOverlayHelper(map)
+                            val helper = WindVectorOverlayHelper(context, map)
                             overlayHelper = helper
                             helper.setupLayers(style)
                             helper.updateWeatherData(style, weatherPoints)
@@ -121,7 +144,7 @@ fun MapScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Top Overlay: Cell Tower Outage Banner (Triggered when STATE_OUT_OF_SERVICE)
+        // Top Overlay: Cell Tower Outage Banner
         AnimatedVisibility(
             visible = isCellOutage,
             modifier = Modifier
@@ -151,7 +174,7 @@ fun MapScreen(
                         fontSize = 12.sp
                     )
                     Text(
-                        text = "Turn ON Airplane Mode + Bluetooth to prevent baseband modem battery drain. AegisMesh P2P is active.",
+                        text = "Turn ON Airplane Mode + Bluetooth to save critical battery. AegisMesh P2P relay active.",
                         color = Color.White,
                         fontSize = 11.sp,
                         lineHeight = 14.sp
@@ -168,8 +191,9 @@ fun MapScreen(
         ) {
             FloatingActionButton(
                 onClick = {
+                    val target = activeStationPoint?.let { LatLng(it.latitude, it.longitude) } ?: LatLng(userLat, userLon)
                     mapInstance?.animateCamera(
-                        CameraUpdateFactory.newLatLngZoom(LatLng(userLat, userLon), 7.0),
+                        CameraUpdateFactory.newLatLngZoom(target, 7.0),
                         800
                     )
                 },
@@ -177,7 +201,7 @@ fun MapScreen(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = RadarCyan
             ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Center on GPS")
+                Icon(Icons.Default.MyLocation, contentDescription = "Focus Station")
             }
 
             Spacer(modifier = Modifier.size(12.dp))
@@ -188,21 +212,29 @@ fun MapScreen(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh Weather")
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh Multi-City Radar")
             }
         }
 
-        // Bottom 7-Day / 168-Hour Weather Scrubber with real-time stats
-        val activePoint = weatherPoints.minByOrNull {
-            GeoUtils.calculateDistanceKm(userLat, userLon, it.latitude, it.longitude)
-        } ?: weatherPoints.firstOrNull()
-
+        // Bottom Disaster Command Console & Scrubber with City Switcher
         TimelineScrubber(
             currentHourOffset = currentHourOffset,
             isPlaying = isPlaying,
             onHourChanged = { viewModel.setHourOffset(it) },
             onPlayPauseToggle = { viewModel.togglePlayPause() },
-            currentPoint = activePoint,
+            currentPoint = activeStationPoint,
+            allStationPoints = weatherPoints,
+            selectedStationName = selectedStationName,
+            onStationSelected = { name ->
+                viewModel.selectStationByName(name)
+                val target = weatherPoints.find { it.cityName.equals(name, ignoreCase = true) }
+                if (target != null) {
+                    mapInstance?.animateCamera(
+                        CameraUpdateFactory.newLatLngZoom(LatLng(target.latitude, target.longitude), 7.0),
+                        600
+                    )
+                }
+            },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
